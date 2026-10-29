@@ -22,6 +22,7 @@ N coding agents. One bounded loop. Zero API bills.
 
 - [Why this exists](#why-this-exists)
 - [What you get in 20 seconds](#what-you-get-in-20-seconds)
+- [Does it actually work?](#does-it-actually-work)
 - [Supported agents](#supported-agents)
 - [Quick start](#quick-start)
 - [Strategies](#strategies)
@@ -64,6 +65,24 @@ $ agora run "add CSV import with validation" --strategy hybrid --allocation auto
 ```
 
 Every line above is appended to `AGORA-LOG.md` in the target repository. The plan lives in `PLAN.md`. Per-turn diagnostics (prompt, exact argv, stdout, stderr, result) go to a directory *outside* the checkout.
+
+## Does it actually work?
+
+Yes, on two levels.
+
+**Live, with real agents.** On 2026-10-29 a collaborative loop ran on a throwaway repo whose five tests fail until `slugify` is implemented. Claude Code planned and built; Codex reviewed and inspected in its read-only sandbox, on a different provider by construction.
+
+| Role | Agent | Wall time | Result |
+|---|---|---|---|
+| plan | Claude Code 2.1.306 | 102 s | wrote `PLAN.md` with a per-test acceptance table |
+| review | Codex CLI 0.153.4 (gpt-6-astra, read-only) | 38 s | **APPROVED**, 1 low finding: a wrong intermediate value in the plan's prose |
+| build | Claude Code | 197 s | implemented `slugify`, one tracked file changed |
+| proof | `python -m unittest -q` | 2 s | Ran 5 tests, OK |
+| inspect | Codex CLI, fresh session | 43 s | **APPROVED**, 0 findings, diff checked against the pre-build commit |
+
+Codex executed the tests against the proposed algorithm in memory during review, without write access, and verified the imports were standard library only. The unedited log, plan, built code and both verdicts with token usage are in [`examples/live-run-2026-10-29/`](examples/live-run-2026-10-29/). The first attempt that day failed because Codex's default model is rejected on ChatGPT accounts: the loop logged a fallback to Claude for planning, then refused to let Claude review its own plan and stopped with the reason. That is the designed behaviour, and it is recorded too. Details in [`VALIDATION.md`](VALIDATION.md).
+
+**Automatically, without spending quota.** 84 tests run on fake agent processes and disposable git repositories on every push, across Ubuntu, Windows and macOS. They cover the ledger, the allocator's hard filters across 1,000 randomised draws, the verdict schema, timeouts and process-tree kills, SHA-bound approvals, all three strategies, explicit fallback, and three end-to-end loops with a real proof command. See [Tests](#tests).
 
 ## Supported agents
 
