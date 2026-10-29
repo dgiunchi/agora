@@ -27,6 +27,24 @@ class BuildArgvTests(unittest.TestCase):
         self.assertEqual(build_argv(s, "hi", platform="win32"), ["node", "C:/npm/claude/cli.js", "-p", "hi"])
         self.assertEqual(build_argv(s, "hi", platform="linux")[0], "claude")
 
+    def test_parses_codex_jsonl_and_claude_stream_json(self):
+        from agora.runner import _parse_output
+        codex = AgentSpec(id="c", provider="openai", argv=("codex", "exec", "--json", "{prompt}"),
+                          output_format="stream-json")
+        out = "\n".join([
+            json.dumps({"type": "thread.started", "thread_id": "t1"}),
+            json.dumps({"type": "item.completed", "item": {"type": "reasoning", "text": "thinking"}}),
+            json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": '{"verdict": "APPROVED"}'}}),
+            json.dumps({"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}}),
+        ])
+        parsed, _ = _parse_output(codex, out)
+        self.assertEqual(parsed["result"], '{"verdict": "APPROVED"}')
+        self.assertEqual(parsed["usage"]["output_tokens"], 5)
+        claude = AgentSpec(id="a", provider="anthropic", argv=("claude", "-p", "{prompt}"), output_format="stream-json")
+        out = json.dumps({"type": "system"}) + "\n" + json.dumps({"type": "result", "result": "hi", "model": "m1"})
+        parsed, observed = _parse_output(claude, out)
+        self.assertEqual((parsed["result"], observed), ("hi", "m1"))
+
     def test_rate_limit_detection(self):
         self.assertTrue(looks_rate_limited(429, "", ""))
         self.assertTrue(looks_rate_limited(1, "", "HTTP 429 Too Many Requests"))

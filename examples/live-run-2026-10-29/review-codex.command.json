@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "node",
+    "C:\\Users\\giunchid\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js",
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "-m",
+    "gpt-6-astra",
+    "You are an independent reviewer (round 1). Task:\n\nImplement slugify(text) in slugger.py so that 'python -m unittest -q' passes in this repository. Keep it standard-library only. Do not modify test_slu",
+    "-s",
+    "read-only"
+  ],
+  "cwd": "<scratch>\\live-fixture",
+  "timeout": 600.0,
+  "read_only": true,
+  "agent": "codex",
+  "role": "review",
+  "requested_model": "gpt-6-astra",
+  "kind": "cli"
+}

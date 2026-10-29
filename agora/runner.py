@@ -115,16 +115,36 @@ def _parse_output(spec: AgentSpec, stdout: str) -> tuple[Any, str | None]:
         except json.JSONDecodeError:
             parsed = None
     elif spec.output_format == "stream-json":
-        for line in reversed(stdout.splitlines()):
+        # Claude: a final {"type": "result", "result": ...} line.
+        # Codex: JSONL events; the answer is the last item.completed agent_message.
+        last_msg: str | None = None
+        usage: Any = None
+        err_msg: str | None = None
+        for line in stdout.splitlines():
             line = line.strip()
-            if line.startswith("{"):
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(obj, dict) and obj.get("type") in ("result", None):
-                    parsed = obj
-                    break
+            if not line.startswith("{"):
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(obj, dict):
+                continue
+            kind = obj.get("type")
+            if kind in ("result", None):
+                parsed = obj
+            elif kind == "item.completed":
+                item = obj.get("item")
+                if isinstance(item, dict) and item.get("type") == "agent_message" and isinstance(item.get("text"), str):
+                    last_msg = item["text"]
+            elif kind == "turn.completed":
+                usage = obj.get("usage")
+            elif kind in ("error", "turn.failed"):
+                msg = obj.get("message") or (obj.get("error") or {}).get("message") if isinstance(obj.get("error"), dict) else obj.get("message")
+                if isinstance(msg, str):
+                    err_msg = msg
+        if parsed is None and (last_msg is not None or err_msg is not None):
+            parsed = {"result": last_msg, "usage": usage, "error": err_msg}
     if isinstance(parsed, dict):
         for key in ("model", "observed_model"):
             if isinstance(parsed.get(key), str):
@@ -203,9 +223,9 @@ def run_turn(spec: AgentSpec, role: str, prompt: str, *, artifacts_root: str | P
             popen_kwargs: dict[str, Any] = {}
             if not sys.platform.startswith("win"):
                 popen_kwargs["start_new_session"] = True
-            proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                    encoding="utf-8", errors="replace", cwd=str(cwd) if cwd else None,
-                                    env=full_env, **popen_kwargs)
+            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
+                                    cwd=str(cwd) if cwd else None, env=full_env, **popen_kwargs)
             try:
                 stdout, stderr = proc.communicate(timeout=timeout)
                 exit_code = proc.returncode
@@ -228,6 +248,10 @@ def run_turn(spec: AgentSpec, role: str, prompt: str, *, artifacts_root: str | P
     rate_limited = looks_rate_limited(exit_code, stdout, stderr)
     parsed, observed = _parse_output(spec, stdout or "")
     ok = error is None and exit_code == 0 and not rate_limited and not timed_out
+    if not ok and error is None and isinstance(parsed, dict) and isinstance(parsed.get("error"), str):
+        error = parsed["error"][:300]  # the CLI explained the failure; keep it in the log
+        if looks_rate_limited(None, "", error):
+            rate_limited = True
     result = TurnResult(ok=ok, agent_id=spec.id, role=role, exit_code=exit_code, stdout=stdout or "",
                         stderr=stderr or "", artifact_dir=str(art), duration=duration,
                         rate_limited=rate_limited, timed_out=timed_out, error=error, argv=argv,

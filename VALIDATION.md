@@ -20,4 +20,15 @@ The automated suite uses fake agent processes and spends no quota. This file rec
 
 ## Live loops
 
-None recorded yet. A live run must use a disposable fixture repository and an explicit model, and must note requested versus observed model, rounds used, fallbacks, and quota consumed per agent as printed by `agora quota --json`.
+| Date | Strategy | Agents | Outcome | Record |
+|---|---|---|---|---|
+| 2026-10-29 | collaborative | Claude Code 2.1.306 (plan, build), Codex 0.153.4 gpt-6-astra (review, inspect) | completed: APPROVED round 1, proof 5/5, inspect APPROVED, 0 fallbacks, 7 turns, ~6.5 min wall | [examples/live-run-2026-10-29](examples/live-run-2026-10-29/) |
+| 2026-10-29 | collaborative | same, Codex on its CLI default model | failed as designed: Codex rejected gpt-6.1-sol on a ChatGPT account, loop fell back to Claude for planning (logged), then refused to let Claude review its own plan | log excerpt in the example README |
+
+Quota consumed by the successful run, per gora quota: Claude Code 3 requests, Codex 4 requests (2 of them the earlier failures). Codex usage reported by its CLI: review 57k input / 581 output tokens, inspect 80k input / 641 output tokens. Claude Code does not report usage in --output-format json on this version.
+
+Requirement discovered: on ChatGPT accounts Codex needs an explicit -m model; the example catalog now pins gpt-6-astra.
+
+A live run must use a disposable fixture repository and an explicit model, and must note requested versus observed model, rounds used, fallbacks, and quota consumed per agent as printed by gora quota --json.
+
+None recorded yet beyond the above. A live run must use a disposable fixture repository and an explicit model, and must note requested versus observed model, rounds used, fallbacks, and quota consumed per agent as printed by `agora quota --json`.

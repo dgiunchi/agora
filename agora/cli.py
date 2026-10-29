@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -44,7 +45,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     allocator = Allocator(catalog, ledger, strategy=args.allocation, seed=args.seed)
     cfg = LoopConfig(task=args.task, strategy=args.strategy, allocation=args.allocation, rounds=args.rounds,
                      max_fix_rounds=args.max_fix_rounds, max_inspection_rounds=args.max_inspection_rounds,
-                     quorum=args.quorum, judge=args.judge, proof_cmd=args.proof_cmd or None,
+                     quorum=args.quorum, judge=args.judge,
+                     proof_cmd=shlex.split(args.proof_cmd, posix=os.name != "nt") if args.proof_cmd else None,
                      repo=Path(args.repo), plan_file=args.plan, log_file=args.log, timeout=args.timeout,
                      builder=args.builder, artifacts_root=Path(args.artifacts) if args.artifacts else None,
                      fallback_roles=() if args.no_fallback else ALL_ROLES)
@@ -128,8 +130,10 @@ def cmd_agents(args: argparse.Namespace) -> int:
             print(f"{s.id:<18} MISSING  {argv[0]} not on PATH")
             bad += 1
             continue
+        via_node = bool(s.node_entry) and argv[0] != s.argv[0]
+        probe = [exe, argv[1], "--version"] if via_node else [exe, "--version"]
         try:
-            out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=20, check=False)
+            out = subprocess.run(probe, capture_output=True, text=True, timeout=20, check=False)
             blob = (out.stdout or out.stderr).strip()
             ver = blob.splitlines()[0] if blob else "?"
         except (OSError, subprocess.TimeoutExpired) as exc:
@@ -158,8 +162,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--max-inspection-rounds", type=int, default=2)
     r.add_argument("--quorum", type=int, default=1)
     r.add_argument("--judge", choices=JUDGES, default="both")
-    r.add_argument("--proof-cmd", nargs="+",
-                   help="command that proves the deliverable, e.g. --proof-cmd python -m unittest")
+    r.add_argument("--proof-cmd",
+                   help='command that proves the deliverable, one quoted string, e.g. --proof-cmd "python -m unittest -q"')
     r.add_argument("--repo", default=".")
     r.add_argument("--plan", default="PLAN.md")
     r.add_argument("--log", default="AGORA-LOG.md")

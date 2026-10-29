@@ -45,7 +45,7 @@ N coding agents. One bounded loop. Zero API bills.
 <img src="assets/loop.svg" alt="The hybrid loop with the quota allocator beside it" width="100%">
 
 ```text
-$ agora run "add CSV import with validation" --strategy hybrid --allocation auto:cheap --proof-cmd pytest -q
+$ agora run "add CSV import with validation" --strategy hybrid --allocation auto:cheap --proof-cmd "pytest -q"
 
 - [2026-10-29T14:02:11Z] ALLOCATION role=plan agent=gemini-cli provider=google headroom=0.92 reason=auto:cheap bandit: ...
 - [2026-10-29T14:03:40Z] REVIEW mode=collaborative round=1 agent=claude-code verdict=REVISE findings=3 material=2
@@ -107,7 +107,7 @@ cp agents.example.toml agents.toml                                 # keep the ag
 agora agents doctor                                              # installed? authenticated? version?
 agora quota                                                      # what has each agent used, what is left
 agora run "add CSV import" --strategy hybrid --dry-run           # who fills which role, spends nothing
-agora run "add CSV import" --strategy hybrid --proof-cmd pytest  # the real thing
+agora run "add CSV import" --strategy hybrid --proof-cmd "pytest -q"  # the real thing
 ```
 
 Requirements: Python 3.11+, git, and at least two agents from different providers (the loop refuses to let a provider review itself). No pip dependencies at runtime.

@@ -12,8 +12,10 @@ id = "claude-code"
 provider = "anthropic"
 kind = "cli"
 tier = "subscription"
-argv = ["claude", "-p", "{prompt}", "--output-format", "json"]
-read_only_argv = ["--safe-mode", "--allowedTools", "Read,Glob,Grep", "--permission-mode", "dontAsk"]
+# Verified live 2026-10-29 (Claude Code 2.1.306). The builder gets edit permission and python;
+# read-only roles disallow every mutating tool. --permission-mode repeats; the last one wins.
+argv = ["claude", "-p", "{prompt}", "--output-format", "json", "--permission-mode", "acceptEdits", "--allowedTools", "Read", "Glob", "Grep", "Edit", "Write", "MultiEdit", "Bash(python*)"]
+read_only_argv = ["--disallowedTools", "Edit", "Write", "MultiEdit", "NotebookEdit", "Bash", "--permission-mode", "dontAsk"]
 resume_argv = ["--resume"]
 output_format = "json"
 reset = "rolling"
@@ -36,8 +38,11 @@ id = "codex"
 provider = "openai"
 kind = "cli"
 tier = "subscription"
-argv = ["codex", "exec", "--json", "{prompt}"]
-read_only_argv = ["-s", "read-only", "--disable", "apps", "--disable", "plugins"]
+# Verified live 2026-10-29 (codex-cli 0.153.4). ChatGPT accounts reject the CLI default model,
+# so pin one explicitly with -m. Reviews run in the read-only sandbox.
+argv = ["codex", "exec", "--json", "--skip-git-repo-check", "-m", "gpt-6-astra", "{prompt}"]
+model = "gpt-6-astra"
+read_only_argv = ["-s", "read-only"]
 output_format = "stream-json"
 reset = "rolling"
 caps_known = false
