@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8e9bc7"/></marker>
+    <marker id="arrw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#f6a623"/></marker>
+  </defs>
+  <rect width="1200" height="520" rx="24" fill="#0b1020"/>
+  <text x="40" y="52" font-size="22" font-weight="700" fill="#ffffff">The hybrid loop, with the allocator beside it</text>
+  <text x="40" y="78" font-size="14" fill="#8e9bc7">Every role is filled at run time by whichever eligible agent has capability, no cooldown, and headroom. Reviewers never share a provider with the planner; the inspector never shares one with the builder.</text>
+
+  <!-- phases -->
+  <g font-size="15" font-weight="700" text-anchor="middle">
+    <g transform="translate(120,200)"><rect x="-70" y="-40" width="140" height="80" rx="14" fill="#1f2a4d" stroke="#f6a623" stroke-width="2"/><text y="-6" fill="#fff">PLAN</text><text y="16" fill="#8e9bc7" font-size="12" font-weight="400">writes PLAN.md</text></g>
+    <g transform="translate(330,200)"><rect x="-80" y="-40" width="160" height="80" rx="14" fill="#1f2a4d" stroke="#5ac8fa" stroke-width="2"/><text y="-6" fill="#fff">PEER REVIEW</text><text y="16" fill="#8e9bc7" font-size="12" font-weight="400">quorum, independent</text></g>
+    <g transform="translate(560,200)"><rect x="-85" y="-40" width="170" height="80" rx="14" fill="#1f2a4d" stroke="#ff5e62" stroke-width="2"/><text y="-6" fill="#fff">RED TEAM + JUDGE</text><text y="16" fill="#8e9bc7" font-size="12" font-weight="400">proof command wins</text></g>
+    <g transform="translate(780,200)"><rect x="-70" y="-40" width="140" height="80" rx="14" fill="#1f2a4d" stroke="#34d399" stroke-width="2"/><text y="-6" fill="#fff">BUILD</text><text y="16" fill="#8e9bc7" font-size="12" font-weight="400">bounded fix rounds</text></g>
+    <g transform="translate(1000,200)"><rect x="-80" y="-40" width="160" height="80" rx="14" fill="#1f2a4d" stroke="#c084fc" stroke-width="2"/><text y="-6" fill="#fff">INSPECT</text><text y="16" fill="#8e9bc7" font-size="12" font-weight="400">fresh session, other provider</text></g>
+  </g>
+  <g stroke="#8e9bc7" stroke-width="2" fill="none" marker-end="url(#arr)">
+    <path d="M190 200H250"/><path d="M410 200H475"/><path d="M645 200H710"/><path d="M850 200H920"/>
+  </g>
+  <!-- revise loops -->
+  <g stroke="#5ac8fa" stroke-width="1.5" fill="none" stroke-dasharray="5 4" marker-end="url(#arr)">
+    <path d="M330 240 Q330 300 120 300 Q 120 260 120 245"/>
+    <path d="M560 240 Q560 320 120 320 Q 120 270 120 248"/>
+  </g>
+  <text x="235" y="296" font-size="11" fill="#5ac8fa">REVISE: planner rewrites, approval re-bound to new SHA256</text>
+  <g stroke="#c084fc" stroke-width="1.5" fill="none" stroke-dasharray="5 4" marker-end="url(#arr)">
+    <path d="M1000 240 Q1000 300 780 300 Q780 260 780 245"/>
+  </g>
+  <text x="820" y="296" font-size="11" fill="#c084fc">findings: builder fixes, re-inspect</text>
+
+  <!-- verdict legend -->
+  <g font-size="12" font-weight="600">
+    <rect x="40" y="350" width="104" height="26" rx="13" fill="#123b2a" stroke="#34d399"/><text x="92" y="367" fill="#34d399" text-anchor="middle">APPROVED</text>
+    <rect x="156" y="350" width="84" height="26" rx="13" fill="#3b2d12" stroke="#f6a623"/><text x="198" y="367" fill="#f6a623" text-anchor="middle">REVISE</text>
+    <rect x="252" y="350" width="94" height="26" rx="13" fill="#3b1218" stroke="#ff5e62"/><text x="299" y="367" fill="#ff5e62" text-anchor="middle">BLOCKED</text>
+    <text x="360" y="367" fill="#8e9bc7" font-weight="400">BLOCKED, malformed output, duplicate ids, or APPROVED with material findings never count as approval.</text>
+  </g>
+
+  <!-- allocator strip -->
+  <rect x="40" y="400" width="1120" height="90" rx="16" fill="#131b36" stroke="#2d3a66"/>
+  <g font-size="13">
+    <text x="60" y="428" fill="#f6a623" font-weight="700" font-size="14">QUOTA ALLOCATOR</text>
+    <text x="60" y="452" fill="#b9c3e6">hard filters: capability for role, not in cooldown, headroom above reserve, independence</text>
+    <text x="60" y="474" fill="#b9c3e6">then Thompson-sampling bandit over reliability, speed, capability, headroom (auto:smart / auto:fast / auto:cheap)</text>
+    <text x="760" y="452" fill="#ff5e62" font-weight="600">429 or timeout mid-turn</text>
+    <path d="M900 448H990" stroke="#f6a623" stroke-width="2" marker-end="url(#arrw)"/>
+    <text x="1000" y="452" fill="#f6a623" font-weight="600">explicit, logged fallback</text>
+    <text x="760" y="474" fill="#8e9bc7">FALLBACK fallback_from=codex fallback_to=gemini-cli reason="rate limited"</text>
+  </g>
+</svg>

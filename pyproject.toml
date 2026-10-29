@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-commons"
+version = "0.1.0"
+description = "A quota-aware system of agentic systems: N coding agents, one bounded loop, free tiers only."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Daniele Giunchi" }]
+keywords = ["agents", "llm", "claude-code", "codex", "multi-agent", "free-tier", "routing"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Build Tools",
+]
+dependencies = []
+
+[project.scripts]
+commons = "agent_commons.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/dgiunchi/agent-commons"
+
+[tool.setuptools]
+packages = ["agent_commons"]

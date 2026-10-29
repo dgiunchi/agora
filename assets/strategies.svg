@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+  <rect width="1200" height="300" rx="24" fill="#0b1020"/>
+  <g font-size="13">
+    <!-- collaborative -->
+    <rect x="40" y="36" width="350" height="228" rx="16" fill="#131b36" stroke="#5ac8fa" stroke-width="2"/>
+    <text x="64" y="72" font-size="20" font-weight="700" fill="#5ac8fa">Collaborative</text>
+    <text x="64" y="96" fill="#8e9bc7">Claudex Loop, generalised to N agents</text>
+    <g fill="#b9c3e6">
+      <text x="64" y="130">• planner writes, peers review with evidence</text>
+      <text x="64" y="154">• quorum of independent approvals</text>
+      <text x="64" y="178">• builder implements, other provider inspects</text>
+      <text x="64" y="202">• findings merged and de-duplicated</text>
+    </g>
+    <text x="64" y="240" fill="#5ac8fa" font-weight="600">Use for: features, refactors, migrations</text>
+
+    <!-- adversarial -->
+    <rect x="425" y="36" width="350" height="228" rx="16" fill="#131b36" stroke="#ff5e62" stroke-width="2"/>
+    <text x="449" y="72" font-size="20" font-weight="700" fill="#ff5e62">Adversarial</text>
+    <text x="449" y="96" fill="#8e9bc7">red team / blue team / judge</text>
+    <g fill="#b9c3e6">
+      <text x="449" y="130">• one agent proposes, another tries to break it</text>
+      <text x="449" y="154">• judge = LLM, proof command, or both</text>
+      <text x="449" y="178">• proof commands win every conflict</text>
+      <text x="449" y="202">• every unresolved finding must be answered</text>
+    </g>
+    <text x="449" y="240" fill="#ff5e62" font-weight="600">Use for: security, parsers, anything with edge cases</text>
+
+    <!-- hybrid -->
+    <rect x="810" y="36" width="350" height="228" rx="16" fill="#131b36" stroke="#f6a623" stroke-width="2"/>
+    <text x="834" y="72" font-size="20" font-weight="700" fill="#f6a623">Hybrid</text>
+    <text x="834" y="96" fill="#8e9bc7">the default</text>
+    <g fill="#b9c3e6">
+      <text x="834" y="130">• collaborative planning and peer review</text>
+      <text x="834" y="154">• adversarial pass on the approved plan</text>
+      <text x="834" y="178">• collaborative fix-up after inspection</text>
+      <text x="834" y="202">• two approvals, both bound to the plan hash</text>
+    </g>
+    <text x="834" y="240" fill="#f6a623" font-weight="600">Use for: anything you would ship</text>
+  </g>
+</svg>

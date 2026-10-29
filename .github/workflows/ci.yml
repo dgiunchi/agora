@@ -1,0 +1,29 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Lint the example catalog
+        run: python scripts/validate.py agents.example.toml
+      - name: Unit, strategy, fallback and end-to-end tests (fake agents, zero quota)
+        run: python -m unittest discover -s tests -t . -v
+      - name: Install and smoke the CLI
+        run: |
+          python -m pip install .
+          commons --version
+          commons agents list --catalog agents.example.toml
+          commons run "smoke" --catalog agents.example.toml --dry-run --seed 1 --ledger ci-ledger.sqlite
