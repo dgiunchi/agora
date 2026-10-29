@@ -100,6 +100,12 @@ def cmd_roles(args: argparse.Namespace) -> int:
 def cmd_quota(args: argparse.Namespace) -> int:
     catalog = load_catalog(_find_catalog(args.catalog))
     ledger = Ledger(_ledger_path(args.ledger))
+    for agent_id in args.forget or ():
+        if agent_id not in catalog:
+            print(f"quota: unknown agent {agent_id!r}", file=sys.stderr)
+            return 2
+        ledger.forget(agent_id)
+        print(f"forgot learned caps and cooldown for {agent_id}")
     rows = ledger.usage_report(catalog)
     if args.json:
         print(json.dumps(rows, indent=2))
@@ -188,6 +194,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     q = sub.add_parser("quota", parents=[common], help="show the quota ledger")
     q.add_argument("--json", action="store_true")
+    q.add_argument("--forget", action="append", metavar="AGENT",
+                   help="drop learned caps and cooldown for AGENT (after a misdetected rate limit)")
     q.set_defaults(fn=cmd_quota)
 
     a = sub.add_parser("agents", parents=[common], help="list or doctor the catalog")

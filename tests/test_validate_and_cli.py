@@ -63,6 +63,11 @@ class CliTests(unittest.TestCase):
         code, out = self._run("quota", "--catalog", str(EXAMPLE), "--ledger", self.ledger, "--json")
         self.assertEqual(code, 0)
         self.assertNotIn('"requests": 1', out)
+        code, out = self._run("quota", "--catalog", str(EXAMPLE), "--ledger", self.ledger, "--forget", "codex")
+        self.assertEqual(code, 0, out)
+        self.assertIn("forgot learned caps and cooldown for codex", out)
+        code, _ = self._run("quota", "--catalog", str(EXAMPLE), "--ledger", self.ledger, "--forget", "nope")
+        self.assertEqual(code, 2)
 
     def test_roles_and_agents_list(self):
         code, out = self._run("roles", "--catalog", str(EXAMPLE), "--ledger", self.ledger, "--seed", "2",

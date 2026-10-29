@@ -124,5 +124,22 @@ class LedgerTests(unittest.TestCase):
         l2.close()
 
 
+class ForgetTests(unittest.TestCase):
+    def test_forget_drops_learned_cap_and_cooldown(self):
+        from .helpers import fake_spec
+        from agora.registry import QuotaWindow
+        ledger = Ledger(":memory:")
+        spec = fake_spec("x", "p", windows=(QuotaWindow("5h", 18000),))
+        for _ in range(3):
+            ledger.record(spec, "plan", duration=1.0, ok=True, outcome="ok")
+        ledger.record(spec, "review", duration=1.0, ok=False, outcome="429", rate_limited=True)
+        self.assertEqual(ledger.headroom(spec), 0.0)
+        self.assertTrue(ledger.in_cooldown("x"))
+        ledger.forget("x")
+        self.assertFalse(ledger.in_cooldown("x"))
+        self.assertEqual(ledger.headroom(spec), 1.0)       # cap unknown again: optimistic
+        self.assertEqual(ledger.total_requests("x"), 4)    # usage is not erased
+
+
 if __name__ == "__main__":
     unittest.main()

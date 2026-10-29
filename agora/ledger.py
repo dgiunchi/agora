@@ -135,6 +135,13 @@ class Ledger:
     def clear_cooldown(self, agent_id: str) -> None:
         self.conn.execute("DELETE FROM cooldowns WHERE agent=?", (agent_id,))
 
+    def forget(self, agent_id: str) -> None:
+        """Drop learned caps and cooldown for an agent (e.g. after a misdetected 429).
+        Declared caps and recorded usage are untouched."""
+        self.conn.execute("DELETE FROM learned_caps WHERE agent=?", (agent_id,))
+        self.conn.execute("DELETE FROM cooldowns WHERE agent=?", (agent_id,))
+        self.conn.commit()
+
     # -- queries ----------------------------------------------------------
     def in_cooldown(self, agent_id: str) -> bool:
         return self.cooldown_remaining(agent_id) > 0

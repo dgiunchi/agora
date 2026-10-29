@@ -14,7 +14,7 @@ I stacked two ideas: FreeLLMAPI's quota router (track every free tier, fail over
 
 Strategies: collaborative (peer review with a quorum), adversarial (red team + judge, proof commands win every conflict), hybrid. Approvals are bound to the plan's SHA256; inspections to a fingerprint of the working tree. Fallback on a rate limit or timeout is explicit and logged, never silent.
 
-It is stdlib Python, 90-odd tests on fake agents that spend no quota, CI on three OSes. Two of the three bundled use cases have run live with Claude Code and Codex, and the first live run found a real gap: a timed-out builder had already written the code, and the fallback builder's "independent" inspector turned out to be the original author. That is fixed and tested now, and the unedited logs are in the repo, including the failure.
+It is stdlib Python, 90-odd tests on fake agents that spend no quota, CI on three OSes. All three bundled use cases (a feature with tests, a red-teamed parser, and a decision memo with a structure checker, because the deliverable does not have to be code) have run live with Claude Code and Codex. Two of those runs found real bugs in Agora: a timed-out builder had already written the code and the fallback's "independent" inspector was the original author; and the rate-limit detector matched Agora's own log line when a reviewer echoed it. Both are fixed and tested, and the unedited logs are in the repo, failures included.
 
 Honest limits: it needs headless CLIs, only two providers have been exercised live so far, and a free tier late in the day may not be the smartest model. The log always says who did what.
 
@@ -46,6 +46,5 @@ Body: see the Show HN text; add the live-run table from the README and the `asse
 
 ## Before posting
 
-- Finish the pending live run of use case 3 and record it, or keep the README's honest "pending" note.
 - Check CI is green on the commit you link.
 - Publish to PyPI (`pip install agora-loop` or similar; `agora` itself is likely taken) so the install line is one command.

@@ -41,4 +41,4 @@ The task text should name the proof command and say that the tests are the contr
 
 ## What was checked
 
-Use cases 1 and 2 were run live on 2026-10-29 with Claude Code 2.1.306 and Codex CLI 0.153.4 (gpt-6-astra); the log, the plan, the deliverable and the verdict JSON of each turn are in their `result/run-1/` folders. Use case 3's checker is self-tested and its live run is pending (the first attempt was interrupted by the host running out of memory). Everything is summarised in the top-level [README](../../README.md#three-use-cases-end-to-end) and [VALIDATION.md](../../VALIDATION.md).
+All three use cases were run live to completion on 2026-10-29 with Claude Code 2.1.306 and Codex CLI 0.153.4 (gpt-6-astra). Each `result/run-1/` folder holds that run's log section, the plan, the deliverable and one numbered JSON per turn with the agent's full response and token usage where the CLI reports it, paths redacted. Two of the runs found bugs in Agora itself; both are fixed and the records were left as they were. Everything is summarised in the top-level [README](../../README.md#three-use-cases-end-to-end) and [VALIDATION.md](../../VALIDATION.md).

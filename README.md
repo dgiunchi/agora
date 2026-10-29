@@ -83,9 +83,9 @@ Yes, on two levels.
 | proof | `python -m unittest -q` | 2 s | Ran 5 tests, OK |
 | inspect | Codex CLI, fresh session | 43 s | **APPROVED**, 0 findings, diff checked against the pre-build commit |
 
-Codex executed the tests against the proposed algorithm in memory during review, without write access, and verified the imports were standard library only. The unedited log, plan, built code and both verdicts with token usage are in [`examples/live-run-2026-10-29/`](examples/live-run-2026-10-29/). The first attempt that day failed because Codex's default model is rejected on ChatGPT accounts: the loop logged a fallback to Claude for planning, then refused to let Claude review its own plan and stopped with the reason. That is the designed behaviour, and it is recorded too. Details in [`VALIDATION.md`](VALIDATION.md). Later the same day two of the three bundled [use cases](#three-use-cases-end-to-end) ran live as well, one collaborative and one adversarial, and the first of them exposed a real gap in the inspection rule that is now fixed and tested.
+Codex executed the tests against the proposed algorithm in memory during review, without write access, and verified the imports were standard library only. The unedited log, plan, built code and both verdicts with token usage are in [`examples/live-run-2026-10-29/`](examples/live-run-2026-10-29/). The first attempt that day failed because Codex's default model is rejected on ChatGPT accounts: the loop logged a fallback to Claude for planning, then refused to let Claude review its own plan and stopped with the reason. That is the designed behaviour, and it is recorded too. Details in [`VALIDATION.md`](VALIDATION.md). Later the same day the three bundled [use cases](#three-use-cases-end-to-end) ran live as well, and two of them found real bugs in Agora: an inspector that could end up checking code its own provider had written after a timed-out build, and a rate-limit detector that matched Agora's own log line when a reviewer echoed it. Both are fixed, tested, and left in the record.
 
-**Automatically, without spending quota.** 91 tests run on fake agent processes and disposable git repositories on every push, across Ubuntu, Windows and macOS. They cover the ledger, the allocator's hard filters across 1,000 randomised draws, the verdict schema, timeouts and process-tree kills, SHA-bound approvals, all three strategies, explicit fallback, and three end-to-end loops with a real proof command. See [Tests](#tests).
+**Automatically, without spending quota.** 92 tests run on fake agent processes and disposable git repositories on every push, across Ubuntu, Windows and macOS. They cover the ledger, the allocator's hard filters across 1,000 randomised draws, the verdict schema, timeouts and process-tree kills, SHA-bound approvals, all three strategies, explicit fallback, and three end-to-end loops with a real proof command. See [Tests](#tests).
 
 ## Supported agents
 
@@ -115,7 +115,7 @@ Any CLI with a headless mode, plus any OpenAI-compatible HTTP endpoint. The exam
 
 | Agent | Kind | Status | Notes |
 |---|---|---|---|
-| Claude Code, Codex CLI | cli | **tested live**, three completed loops with each tool in every role (see [use cases](#three-use-cases-end-to-end) and `VALIDATION.md`) | read-only roles get `exec -s read-only` / disallowed edit tools, builders `exec -s workspace-write` / `acceptEdits`, as in Claudex Loop |
+| Claude Code, Codex CLI | cli | **tested live**, four completed loops with each tool in every role (see [use cases](#three-use-cases-end-to-end) and `VALIDATION.md`) | read-only roles get `exec -s read-only` / disallowed edit tools, builders `exec -s workspace-write` / `acceptEdits`, as in Claudex Loop |
 | Gemini CLI, Qwen Code, OpenCode, Aider, Goose, Crush, Kilo Code, Cline | cli | declared | headless argv from each tool's docs; send a PR with a `VALIDATION.md` entry once you have run one |
 | FreeLLMAPI, Ollama, vLLM, LM Studio | http | **tested** (fake server in CI) | any `/v1/chat/completions` endpoint |
 
@@ -149,7 +149,7 @@ python examples/use-cases/run.py red-team       --catalog agents.toml           
 python examples/use-cases/run.py decision-memo  --catalog agents.toml             # 3. a document, not code
 ```
 
-`--workdir DIR` chooses the checkout location, `--seed N` makes the allocation reproducible, `--ledger PATH` keeps the quota separate, and everything after `--` goes to `agora run` (for example `-- --timeout 900`). When a run ends you get the status on stdout and `AGORA-LOG.md`, `PLAN.md` and the deliverable in the fixture directory. The first two were run live on 2026-10-29 with Claude Code 2.1.306 and Codex CLI 0.153.4 (gpt-6-astra); the logs, plans, deliverables and verdict JSON are under each use case's `result/` folder. The third is verified by its checker and dry run and its live run is pending, as its section says.
+`--workdir DIR` chooses the checkout location, `--seed N` makes the allocation reproducible, `--ledger PATH` keeps the quota separate, and everything after `--` goes to `agora run` (for example `-- --timeout 900`). When a run ends you get the status on stdout and `AGORA-LOG.md`, `PLAN.md` and the deliverable in the fixture directory. All three were run live to completion on 2026-10-29 with Claude Code 2.1.306 and Codex CLI 0.153.4 (gpt-6-astra); the logs, plans, deliverables and the verdict JSON of every turn are under each use case's `result/run-1/` folder, paths redacted, nothing edited.
 
 ### 1. Ship a feature nobody self-approved
 
@@ -170,7 +170,7 @@ The bundled fixture is `slugify()` with five failing tests. Live, first run:
 | proof | `python -m unittest -q` | 1 s | Ran 5 tests, OK |
 | inspect | Claude Code, fresh session | 208 s | **APPROVED**, 2 low (NFKD drops ß/æ/ø; `__pycache__` untracked) |
 
-That run completed, and it also exposed a gap. The killed Claude turn had already written the implementation; Codex only verified it; and the inspector was chosen to be independent of the *recorded* builder, Codex, so Claude inspected code Claude wrote. The loop now treats any agent whose failed write turn changed the working tree as an author: the `FALLBACK` line carries `tree_changed=true`, the `INSPECT` line lists `also_touched`, and the inspector must be independent of every author. With two providers that first run would now stop with `no eligible agent for role 'inspect'`, which is the honest outcome. Three fake-agent tests pin the rule. See `examples/use-cases/feature-review/result/` for both runs.
+That run completed, and it also exposed a gap. The killed Claude turn had already written the implementation; Codex only verified it; and the inspector was chosen to be independent of the *recorded* builder, Codex, so Claude inspected code Claude wrote. The loop now treats any agent whose failed write turn changed the working tree as an author: the `FALLBACK` line carries `tree_changed=true`, the `INSPECT` line lists `also_touched`, and the inspector must be independent of every author. With two providers that first run would now stop with `no eligible agent for role 'inspect'`, which is the honest outcome. Three fake-agent tests pin the rule. A second run under the fixed rule got a clean plan (158 s) and a zero-finding approval from Codex (44 s) before the host machine's memory reaper killed it during the build; the record is in `VALIDATION.md`.
 
 ### 2. Red-team a parser before it ships
 
@@ -200,7 +200,21 @@ Zero fallbacks, eight low findings left open for a human, none material. Because
 agora run "write DECISION.md: a one-page memo on adopting a monorepo ..." --strategy collaborative --proof-cmd "python check_memo.py"
 ```
 
-Status: the checker is self-tested (it rejects a missing or malformed memo and accepts a well-formed one), the dry run allocates the roles, and the live run on 2026-10-29 got through planning (Claude Code, 259 s) and was into the Codex review when the host machine ran out of memory and the run was stopped. It has not yet completed live; the command above is how to finish the job, and the outcome will be recorded in `VALIDATION.md` when it has.
+Live, this was the only run that needed more than one round, and the pushback was about facts, not formatting:
+
+| Role | Agent | Wall time | Result |
+|---|---|---|---|
+| plan | Claude Code | 276 s | plan with section budgets, invented scenario details and a verification table |
+| review 1 | Codex, read-only | 96 s | **REVISE**, 2 medium: the scenario's pains are invented and drive the recommendation; "drift disappears" and "half the migration effort" are unsupported claims |
+| revise 1 | Claude Code | 142 s | labelled assumptions, qualified the claims |
+| review 2 | Codex | 76 s | **REVISE**, 2 medium: outline still recommends two options conditionally; "no team boundary worth mirroring" is asserted from nothing |
+| revise 2 | Claude Code | 135 s | one recommendation, ownership stated as an assumption to validate |
+| review 3 | Codex | 75 s | **APPROVED**, 2 low (word budget arithmetic, git status expectation) |
+| build | Codex, workspace-write | 77 s | wrote `DECISION.md`, 548 words |
+| proof | `python check_memo.py` | 1 s | OK, six sections in order |
+| inspect | Claude Code, fresh session | 280 s | **APPROVED**, 2 low: one clumsy sentence, a weighting claim the table does not back |
+
+Three rounds, zero fallbacks, four low findings left open. The memo and every verdict are in `examples/use-cases/decision-memo/result/run-1/`. This run also found Agora's second bug: on an earlier attempt Codex had read the fixture's `AGORA-LOG.md`, echoed it, and the rate-limit detector matched Agora's own `rate_limited=false` field, so a clean turn was recorded as a 429 and a cap of nine requests was learned. Fixed: a clean exit is never rate-limited by keyword, and `agora quota --forget <agent>` drops a learned cap.
 
 **A note on the wall times.** Claude Code turns were slow in these runs because the host machine's Claude Code had plugin hooks installed that blocked or delayed its read tools; both Claude reviewers said so in their `limitations`. That is the host's configuration rather than Agora, but it is why every turn has a `--timeout`, why a timeout is a logged fallback rather than a hang, and why the per-turn artifacts outside the checkout matter when you want to know what an agent actually saw.
 
@@ -252,7 +266,7 @@ python -m unittest discover -s tests -t . -v
 | ledger | windows roll, UTC-midnight and rolling resets, cooldown backoff and cap, caps learned from a 429, headroom math, persistence |
 | allocator | hard filters hold across 1,000 randomised draws, `auto:cheap` prefers free tiers, seeded bandit is deterministic, dry-run spends nothing, independence via role references |
 | review | schema validation: duplicate ids, bad severity, APPROVED with material findings, missing coverage, JSON wrapped in prose or in `claude -p` output |
-| runner | five artifact files, stderr preserved, timeout kills the process tree, rate-limit detection, Windows Node launch path, HTTP agents including 429 |
+| runner | five artifact files, stderr preserved, timeout kills the process tree, rate-limit detection (never on a clean exit, never on `rate_limited=` echoed from a log), Windows Node launch path, HTTP agents including 429 |
 | approval | one byte invalidates an approval, untracked files change the inspection fingerprint |
 | strategies | all three reach a terminal state inside the round cap; BLOCKED, malformed, duplicate ids and APPROVED-with-material are rejected; quorum; judge rules; tampered plan refused; fix rounds |
 | fallback | logged with `fallback_from`, `fallback_to`, `reason`; disabled per role fails loudly; independence survives fallback; budget |

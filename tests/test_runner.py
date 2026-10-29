@@ -51,7 +51,12 @@ class BuildArgvTests(unittest.TestCase):
         self.assertTrue(looks_rate_limited(429, "", ""))
         self.assertTrue(looks_rate_limited(1, "", "HTTP 429 Too Many Requests"))
         self.assertTrue(looks_rate_limited(1, "You have hit your usage limit", ""))
+        self.assertTrue(looks_rate_limited(1, "", "Rate-limit exceeded, retry later"))
         self.assertFalse(looks_rate_limited(0, "all good", ""))
+        # a clean exit is never rate limited by keyword: agents echo files, including our own log
+        echoed_log = "- [2026-10-29T15:01:59Z] TURN role=plan agent=x ok=true rate_limited=false"
+        self.assertFalse(looks_rate_limited(0, echoed_log, "HTTP 429 seen in a file"))
+        self.assertFalse(looks_rate_limited(1, echoed_log, ""))   # rate_limited= is not a rate limit
 
 
 class RunTurnTests(unittest.TestCase):

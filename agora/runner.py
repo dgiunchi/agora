@@ -27,7 +27,7 @@ from .registry import AgentSpec
 
 RATE_LIMIT_PATTERNS = [
     re.compile(p, re.IGNORECASE) for p in (
-        r"\b429\b", r"rate.?limit", r"usage limit", r"quota (exceeded|exhausted|reached)",
+        r"\b429\b", r"rate[ -]?limit", r"usage limit", r"quota (exceeded|exhausted|reached)",
         r"too many requests", r"resource.?exhausted", r"limit reached",
     )
 ]
@@ -85,8 +85,16 @@ def build_argv(spec: AgentSpec, prompt: str, *, role: str = "", read_only: bool 
 
 
 def looks_rate_limited(exit_code: int | None, stdout: str, stderr: str) -> bool:
+    """Keyword detection for CLIs that do not report quota errors structurally.
+
+    A turn that exited 0 is never rate limited by keyword: agents read files and echo
+    them (including Agora's own log, which contains `rate_limited=false`), so on a
+    clean exit only a structured error from the CLI itself may say so.
+    """
     if exit_code == 429:
         return True
+    if exit_code == 0:
+        return False
     blob = (stderr or "")[-4000:] + "\n" + (stdout or "")[-4000:]
     return any(p.search(blob) for p in RATE_LIMIT_PATTERNS)
 
