@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_commons.coordinator import Coordinator, LoopFailure
+from agora.coordinator import Coordinator, LoopFailure
 
 from .helpers import events, finding, log_text, make_coordinator, proof_cmd_for, review, toy_build_response
 

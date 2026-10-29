@@ -31,9 +31,9 @@
   </g>
 
   <!-- title -->
-  <text x="70" y="140" font-size="64" font-weight="800" fill="#ffffff" letter-spacing="-1">Agent Commons</text>
+  <text x="70" y="140" font-size="64" font-weight="800" fill="#ffffff" letter-spacing="-1">Agora</text>
   <text x="72" y="190" font-size="26" fill="url(#accent)" font-weight="600">Your free tiers, working together.</text>
-  <text x="72" y="236" font-size="19" fill="#b9c3e6">N coding agents. One bounded loop. Zero API bills.</text>
+  <text x="72" y="236" font-size="19" fill="#b9c3e6">Where free agents argue until the code is right.</text>
 
   <!-- stat pills -->
   <g font-size="14" font-weight="600">

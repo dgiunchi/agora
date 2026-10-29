@@ -1,10 +1,12 @@
 <div align="center">
 
-<img src="assets/hero.svg" alt="Agent Commons: your free tiers, working together" width="100%">
+<img src="assets/hero.svg" alt="Agora: where free agents argue until the code is right" width="100%">
 
-### N coding agents. One bounded loop. Zero API bills.
+### Where free agents argue until the code is right.
 
-[![CI](https://github.com/dgiunchi/agent-commons/actions/workflows/ci.yml/badge.svg)](https://github.com/dgiunchi/agent-commons/actions/workflows/ci.yml)
+N coding agents. One bounded loop. Zero API bills.
+
+[![CI](https://github.com/dgiunchi/agora/actions/workflows/ci.yml/badge.svg)](https://github.com/dgiunchi/agora/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](./pyproject.toml)
 [![Zero deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen.svg)](./pyproject.toml)
@@ -36,14 +38,14 @@
 
 **Single-agent loops have blind spots.** A model reviewing its own plan tends to approve it. [Claudex Loop](https://github.com/chaseai-yt/claudex-loop) showed that handing the plan to a *different* provider for review, and the code to a fresh session of yet another provider for inspection, catches what one model misses. But it runs on exactly two providers and stops dead when one runs out of quota.
 
-**Agent Commons does both.** It treats whole agentic systems the way FreeLLMAPI treats models: a catalog with quota shapes, a persistent ledger of what each one has used, cooldowns on 429s, and a bandit that picks the best eligible agent for every role. Then it runs them through a Claudex-style bounded loop under a strategy you choose: collaborative, adversarial, or hybrid. When an agent is rate-limited mid-turn, the loop does not die and does not silently swap models either. It fails over to the next eligible agent and writes that down.
+**Agora does both.** It treats whole agentic systems the way FreeLLMAPI treats models: a catalog with quota shapes, a persistent ledger of what each one has used, cooldowns on 429s, and a bandit that picks the best eligible agent for every role. Then it runs them through a Claudex-style bounded loop under a strategy you choose: collaborative, adversarial, or hybrid. When an agent is rate-limited mid-turn, the loop does not die and does not silently swap models either. It fails over to the next eligible agent and writes that down.
 
 ## What you get in 20 seconds
 
 <img src="assets/loop.svg" alt="The hybrid loop with the quota allocator beside it" width="100%">
 
 ```text
-$ commons run "add CSV import with validation" --strategy hybrid --allocation auto:cheap --proof-cmd pytest -q
+$ agora run "add CSV import with validation" --strategy hybrid --allocation auto:cheap --proof-cmd pytest -q
 
 - [2026-10-29T14:02:11Z] ALLOCATION role=plan agent=gemini-cli provider=google headroom=0.92 reason=auto:cheap bandit: ...
 - [2026-10-29T14:03:40Z] REVIEW mode=collaborative round=1 agent=claude-code verdict=REVISE findings=3 material=2
@@ -61,7 +63,7 @@ $ commons run "add CSV import with validation" --strategy hybrid --allocation au
 - [2026-10-29T14:21:17Z] SUMMARY status=completed rounds=3 inspections=1 fallbacks=1 open_findings=1
 ```
 
-Every line above is appended to `COMMONS-LOG.md` in the target repository. The plan lives in `PLAN.md`. Per-turn diagnostics (prompt, exact argv, stdout, stderr, result) go to a directory *outside* the checkout.
+Every line above is appended to `AGORA-LOG.md` in the target repository. The plan lives in `PLAN.md`. Per-turn diagnostics (prompt, exact argv, stdout, stderr, result) go to a directory *outside* the checkout.
 
 ## Supported agents
 
@@ -100,12 +102,12 @@ Adding an agent is one TOML table. See [`agents.example.toml`](agents.example.to
 ## Quick start
 
 ```bash
-pipx install git+https://github.com/dgiunchi/agent-commons        # or: pip install .
+pipx install git+https://github.com/dgiunchi/agora        # or: pip install .
 cp agents.example.toml agents.toml                                 # keep the agents you actually have
-commons agents doctor                                              # installed? authenticated? version?
-commons quota                                                      # what has each agent used, what is left
-commons run "add CSV import" --strategy hybrid --dry-run           # who fills which role, spends nothing
-commons run "add CSV import" --strategy hybrid --proof-cmd pytest  # the real thing
+agora agents doctor                                              # installed? authenticated? version?
+agora quota                                                      # what has each agent used, what is left
+agora run "add CSV import" --strategy hybrid --dry-run           # who fills which role, spends nothing
+agora run "add CSV import" --strategy hybrid --proof-cmd pytest  # the real thing
 ```
 
 Requirements: Python 3.11+, git, and at least two agents from different providers (the loop refuses to let a provider review itself). No pip dependencies at runtime.
@@ -168,7 +170,7 @@ CI runs the suite on Ubuntu, Windows and macOS with Python 3.11 and 3.13, then i
 
 - No frontier guarantee: the agent that has quota left late in the day may not be the smartest one. The log always says who did what.
 - Independence is by provider, not by model family. Two agents backed by the same upstream model are not independent even if their providers differ.
-- Use only quotas you are entitled to. Several vendors forbid proxying or resale of free tiers; FreeLLMAPI's architecture docs keep an honest per-provider table. Agent Commons never shares a credential between agents and never routes one agent's traffic through another's account.
+- Use only quotas you are entitled to. Several vendors forbid proxying or resale of free tiers; FreeLLMAPI's architecture docs keep an honest per-provider table. Agora never shares a credential between agents and never routes one agent's traffic through another's account.
 - The loop needs headless CLIs. Editor-only agents (Cursor, Cline VS Code, Roo Code, Continue, Zed, JetBrains AI) are not in the catalog until they expose one.
 - This is not a chat proxy. Point raw clients at FreeLLMAPI instead and list it here as an HTTP tier.
 
@@ -176,7 +178,7 @@ CI runs the suite on Ubuntu, Windows and macOS with Python 3.11 and 3.13, then i
 
 Good first PRs:
 
-- **Validate an agent** you have installed: run `commons agents doctor`, then a `--dry-run` and one real loop, and add a row to `VALIDATION.md`.
+- **Validate an agent** you have installed: run `agora agents doctor`, then a `--dry-run` and one real loop, and add a row to `VALIDATION.md`.
 - **Add an agent**: one `[[agents]]` table in `agents.example.toml` with its headless argv and documented quota, plus a test in `tests/test_validate_and_cli.py` if it needs special parsing.
 - **Improve the bandit**: latency-weighted priors, per-role reliability, regional pinning.
 - **Strategy ideas**: tournament (N proposals, one judge), debate with a moderator, mixed authorship with cross-inspection.

@@ -6,7 +6,7 @@ import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from agent_commons.registry import validate_catalog  # noqa: E402
+from agora.registry import validate_catalog  # noqa: E402
 
 
 def main(argv: list[str]) -> int:

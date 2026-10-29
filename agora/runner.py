@@ -168,7 +168,7 @@ def http_turn(spec: AgentSpec, prompt: str, *, timeout: float, env: dict[str, st
 
 
 def new_artifact_dir(root: str | Path | None, agent_id: str, role: str) -> Path:
-    base = Path(root) if root else Path(tempfile.gettempdir()) / "agent-commons"
+    base = Path(root) if root else Path(tempfile.gettempdir()) / "agora"
     d = base / f"{time.strftime('%Y%m%d-%H%M%S')}-{role}-{agent_id}-{uuid.uuid4().hex[:8]}"
     d.mkdir(parents=True, exist_ok=False)
     return d

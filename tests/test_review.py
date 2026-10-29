@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from agent_commons.review import ReviewError, extract_json, parse_review, validate_review
+from agora.review import ReviewError, extract_json, parse_review, validate_review
 
 
 def base(**kw):

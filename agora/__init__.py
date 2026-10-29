@@ -1,4 +1,6 @@
-"""Agent Commons: a quota-aware system of agentic systems.
+"""Agora: where free agents argue until the code is right.
+
+A quota-aware system of agentic systems.
 
 N coding agents (Claude Code, Codex, Gemini CLI, Aider, ...) collaborate or
 compete inside one bounded loop, while an allocator spends their free quotas

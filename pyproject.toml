@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-commons"
+name = "agora"
 version = "0.1.0"
 description = "A quota-aware system of agentic systems: N coding agents, one bounded loop, free tiers only."
 readme = "README.md"
@@ -20,10 +20,10 @@ classifiers = [
 dependencies = []
 
 [project.scripts]
-commons = "agent_commons.cli:main"
+agora = "agora.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/dgiunchi/agent-commons"
+Homepage = "https://github.com/dgiunchi/agora"
 
 [tool.setuptools]
-packages = ["agent_commons"]
+packages = ["agora"]

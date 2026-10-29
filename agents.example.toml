@@ -1,4 +1,4 @@
-# Agent Commons catalog. Copy to agents.toml and keep only the agents you have.
+# Agora catalog. Copy to agents.toml and keep only the agents you have.
 #
 # Every CLI below has a headless / non-interactive mode. Quota shapes are the
 # publicly documented free or subscription limits as of October 2026; set

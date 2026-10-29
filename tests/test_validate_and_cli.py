@@ -6,8 +6,8 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from agent_commons.cli import main
-from agent_commons.registry import CatalogError, load_catalog
+from agora.cli import main
+from agora.registry import CatalogError, load_catalog
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "agents.example.toml"

@@ -4,7 +4,7 @@ The automated suite uses fake agent processes and spends no quota. This file rec
 
 ## Doctor (no quota spent)
 
-`commons agents doctor --catalog agents.example.toml` on Windows 11, Python 3.13, 2026-10-29:
+`agora agents doctor --catalog agents.example.toml` on Windows 11, Python 3.13, 2026-10-29:
 
 | Agent | Result |
 |---|---|
@@ -16,8 +16,8 @@ The automated suite uses fake agent processes and spends no quota. This file rec
 
 ## Dry run (no quota spent)
 
-`commons run "smoke" --catalog agents.example.toml --dry-run --seed 1 --allocation auto:cheap` produced a seven-role hybrid allocation plan with independence satisfied (reviewers never shared the planner's provider; the inspector never shared the builder's).
+`agora run "smoke" --catalog agents.example.toml --dry-run --seed 1 --allocation auto:cheap` produced a seven-role hybrid allocation plan with independence satisfied (reviewers never shared the planner's provider; the inspector never shared the builder's).
 
 ## Live loops
 
-None recorded yet. A live run must use a disposable fixture repository and an explicit model, and must note requested versus observed model, rounds used, fallbacks, and quota consumed per agent as printed by `commons quota --json`.
+None recorded yet. A live run must use a disposable fixture repository and an explicit model, and must note requested versus observed model, rounds used, fallbacks, and quota consumed per agent as printed by `agora quota --json`.

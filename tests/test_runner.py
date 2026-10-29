@@ -8,8 +8,8 @@ import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-from agent_commons.registry import AgentSpec
-from agent_commons.runner import ARTIFACT_FILES, build_argv, looks_rate_limited, run_turn
+from agora.registry import AgentSpec
+from agora.runner import ARTIFACT_FILES, build_argv, looks_rate_limited, run_turn
 
 from .helpers import fake_spec, write_script
 

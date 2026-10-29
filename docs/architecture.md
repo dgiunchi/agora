@@ -1,6 +1,6 @@
 # Architecture
 
-Agent Commons is five small modules and one coordinator, all standard library.
+Agora is five small modules and one coordinator, all standard library.
 
 ```mermaid
 flowchart LR
@@ -12,7 +12,7 @@ flowchart LR
     RUN --> REV[review.py<br/>verdict schema]
     REV --> COORD
     COORD --> APR[approval.py<br/>SHA256 + fingerprint]
-    COORD --> LOG[(PLAN.md<br/>COMMONS-LOG.md)]
+    COORD --> LOG[(PLAN.md<br/>AGORA-LOG.md)]
 ```
 
 ## Components

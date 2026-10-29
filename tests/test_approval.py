@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_commons.approval import (bind_approval, check_approval, current_commit, inspection_fingerprint,
+from agora.approval import (bind_approval, check_approval, current_commit, inspection_fingerprint,
                                     plan_sha256)
 
 from .helpers import git, make_repo

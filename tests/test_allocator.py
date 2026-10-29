@@ -1,9 +1,9 @@
 import random
 import unittest
 
-from agent_commons.allocator import AllocationError, Allocator, RoleRequest
-from agent_commons.ledger import Ledger
-from agent_commons.registry import AgentSpec, QuotaWindow
+from agora.allocator import AllocationError, Allocator, RoleRequest
+from agora.ledger import Ledger
+from agora.registry import AgentSpec, QuotaWindow
 
 from .helpers import fake_catalog, fake_spec
 

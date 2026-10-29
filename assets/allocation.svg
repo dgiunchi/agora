@@ -57,5 +57,5 @@
 
   <!-- dry run strip -->
   <rect x="40" y="385" width="1120" height="36" rx="10" fill="#131b36" stroke="#2d3a66"/>
-  <text x="60" y="408" font-size="13" fill="#b9c3e6" font-family="Consolas, Menlo, monospace">$ commons run "add CSV import" --strategy hybrid --allocation auto:cheap --dry-run     # prints this plan, spends nothing</text>
+  <text x="60" y="408" font-size="13" fill="#b9c3e6" font-family="Consolas, Menlo, monospace">$ agora run "add CSV import" --strategy hybrid --allocation auto:cheap --dry-run     # prints this plan, spends nothing</text>
 </svg>

@@ -54,7 +54,7 @@ class LoopConfig:
     proof_cmd: list[str] | None = None
     repo: Path = field(default_factory=lambda: Path("."))
     plan_file: str = "PLAN.md"
-    log_file: str = "COMMONS-LOG.md"
+    log_file: str = "AGORA-LOG.md"
     artifacts_root: Path | None = None
     timeout: float = 600.0
     builder: str | None = None
@@ -156,7 +156,7 @@ class Coordinator:
         new = not self.log_path.exists()
         with self.log_path.open("a", encoding="utf-8") as fh:
             if new:
-                fh.write("# COMMONS-LOG\n\nAppend-only record of allocations, fallbacks, verdicts, "
+                fh.write("# AGORA-LOG\n\nAppend-only record of allocations, fallbacks, verdicts, "
                          "approvals and proof.\n")
             fh.write(header)
 

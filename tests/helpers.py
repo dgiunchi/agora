@@ -7,10 +7,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from agent_commons.allocator import Allocator
-from agent_commons.coordinator import Coordinator, LoopConfig
-from agent_commons.ledger import Ledger
-from agent_commons.registry import AgentSpec, QuotaWindow
+from agora.allocator import Allocator
+from agora.coordinator import Coordinator, LoopConfig
+from agora.ledger import Ledger
+from agora.registry import AgentSpec, QuotaWindow
 
 FAKE = Path(__file__).with_name("fake_agent.py").resolve()
 THREE = (("alpha", "anthropic", "free"), ("beta", "openai", "subscription"), ("gamma", "google", "free"))

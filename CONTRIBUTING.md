@@ -5,12 +5,12 @@ Thanks for helping. The bar is the same for human and AI-assisted contributions:
 ## Dev loop
 
 ```text
-git clone https://github.com/dgiunchi/agent-commons
-cd agent-commons
+git clone https://github.com/dgiunchi/agora
+cd agora
 python scripts/validate.py agents.example.toml
 python -m unittest discover -s tests -t . -v
 pip install -e .
-commons --version
+agora --version
 ```
 
 Python 3.11+ and git are the only requirements. There are no runtime dependencies; please keep it that way unless a dependency removes a lot of code.
@@ -26,7 +26,7 @@ Python 3.11+ and git are the only requirements. There are no runtime dependencie
 
 1. Add a table to `agents.example.toml` with its headless argv (`{prompt}` and optionally `{role}` placeholders), the read-only flags if it has them, the documented quota windows, and capability priors.
 2. If it emits JSON, set `output_format = "json"` or `"stream-json"`; the runner unwraps `{"result": ...}` style wrappers.
-3. Run `commons agents doctor` and a `--dry-run`. If you run a real loop, add the result to `VALIDATION.md`.
+3. Run `agora agents doctor` and a `--dry-run`. If you run a real loop, add the result to `VALIDATION.md`.
 
 ## Style
 

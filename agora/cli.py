@@ -1,4 +1,4 @@
-"""`commons` command line: run a loop, show roles, show quota, doctor the agents."""
+"""`agora` command line: run a loop, show roles, show quota, doctor the agents."""
 from __future__ import annotations
 
 import argparse
@@ -23,7 +23,7 @@ def _find_catalog(explicit: str | None) -> Path:
     if explicit:
         return Path(explicit)
     for name in DEFAULT_CATALOG_NAMES:
-        for base in (Path.cwd(), Path.home() / ".agent-commons"):
+        for base in (Path.cwd(), Path.home() / ".agora"):
             p = base / name
             if p.exists():
                 return p
@@ -33,7 +33,7 @@ def _find_catalog(explicit: str | None) -> Path:
 def _ledger_path(explicit: str | None) -> str:
     if explicit:
         return explicit
-    d = Path.home() / ".agent-commons"
+    d = Path.home() / ".agora"
     d.mkdir(parents=True, exist_ok=True)
     return str(d / "ledger.sqlite")
 
@@ -140,11 +140,11 @@ def cmd_agents(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="commons", description="A quota-aware system of agentic systems.")
-    p.add_argument("--version", action="version", version=f"agent-commons {__version__}")
+    p = argparse.ArgumentParser(prog="agora", description="A quota-aware system of agentic systems.")
+    p.add_argument("--version", action="version", version=f"agora {__version__}")
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--catalog", help="agents.toml path (default: ./agents.toml or ~/.agent-commons/)")
-    common.add_argument("--ledger", help="SQLite ledger path (default: ~/.agent-commons/ledger.sqlite)")
+    common.add_argument("--catalog", help="agents.toml path (default: ./agents.toml or ~/.agora/)")
+    common.add_argument("--ledger", help="SQLite ledger path (default: ~/.agora/ledger.sqlite)")
     common.add_argument("--allocation", default="auto:smart",
                         help="auto:smart | auto:fast | auto:cheap | profile:<name>")
     common.add_argument("--seed", type=int, default=None, help="seed the bandit for reproducible allocation")
@@ -162,7 +162,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="command that proves the deliverable, e.g. --proof-cmd python -m unittest")
     r.add_argument("--repo", default=".")
     r.add_argument("--plan", default="PLAN.md")
-    r.add_argument("--log", default="COMMONS-LOG.md")
+    r.add_argument("--log", default="AGORA-LOG.md")
     r.add_argument("--timeout", type=float, default=600.0)
     r.add_argument("--builder", help="force a builder agent id")
     r.add_argument("--artifacts", help="directory for per-turn diagnostics (default: system temp)")

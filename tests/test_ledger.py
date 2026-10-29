@@ -1,7 +1,7 @@
 import unittest
 
-from agent_commons.ledger import Ledger
-from agent_commons.registry import AgentSpec, QuotaWindow
+from agora.ledger import Ledger
+from agora.registry import AgentSpec, QuotaWindow
 
 DAY = 86400
 
