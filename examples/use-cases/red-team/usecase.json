@@ -1,0 +1,7 @@
+{
+  "title": "Red-team a parser before it ships",
+  "strategy": "adversarial",
+  "task": "Implement parse_size(text) in sizes.py: turn a human-readable size such as '10MB', '1.5 GiB' or '512' into an integer number of bytes, so that 'python -m unittest -q' passes. Decimal units KB/MB/GB/TB are powers of 1000, binary units KiB/MiB/GiB/TiB are powers of 1024, a bare number or a B suffix means bytes. Units are case-insensitive; surrounding whitespace and one optional space between number and unit are allowed; fractional numbers are allowed and the result is rounded down. Everything else (empty, negative, unknown unit, malformed number, non-string input) must raise ValueError. Standard library only; do not edit the tests.",
+  "args": ["--strategy", "adversarial", "--rounds", "3"],
+  "proof_cmd": "python -m unittest -q"
+}

@@ -69,6 +69,11 @@ class CliTests(unittest.TestCase):
                               "--strategy", "adversarial")
         self.assertEqual(code, 0, out)
         self.assertEqual(out.count("role="), 5)
+        code, out = self._run("roles", "--catalog", str(EXAMPLE), "--ledger", self.ledger, "--seed", "2",
+                              "--strategy", "adversarial", "--judge", "proof-cmd")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out.count("role="), 4)
+        self.assertNotIn("role=judge", out)
         code, out = self._run("agents", "list", "--catalog", str(EXAMPLE))
         self.assertEqual(code, 0)
         self.assertIn("freellmapi", out)

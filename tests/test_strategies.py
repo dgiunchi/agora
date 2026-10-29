@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agora.allocator import AllocationError
 from agora.coordinator import Coordinator, LoopFailure
 
 from .helpers import events, finding, log_text, make_coordinator, proof_cmd_for, review, toy_build_response
@@ -126,6 +127,42 @@ class StrategyTests(unittest.TestCase):
         out = coord.run()
         self.assertEqual(out.status, "rounds_exhausted")
 
+    def test_judge_both_degrades_visibly_with_two_providers(self):
+        """No third provider: the LLM judge is skipped and logged, every red-team
+        finding goes back to the planner, nothing is cleared, the loop still converges."""
+        two = (("alpha", "anthropic", "free"), ("beta", "openai", "subscription"))
+        script = {"*": {"review": [review("REVISE", [finding("R1")]), review("APPROVED")],
+                        "plan": [{"json": {"plan": "# v1"}}, {"json": {"plan": "# v2 R1 addressed"}}]}}
+        coord, out = self._run("adversarial", script, agents=two, judge="both")
+        self.assertEqual(out.status, "completed", out.reason)
+        self.assertEqual(out.rounds_used, 2)
+        self.assertNotIn("judge", [a.role for a in out.allocations])
+        skipped = [e for e in events(coord, "JUDGE") if e.get("skipped")]
+        self.assertEqual(len(skipped), 1)
+        self.assertEqual(skipped[0]["unresolved"], ["R1"])
+        self.assertIn("no independent judge available", skipped[0]["reason"])
+        self.assertIn("JUDGE by=llm round=1 skipped=true", log_text(coord))
+        self.assertEqual(len(events(coord, "REVISION")), 1)
+
+    def test_judge_llm_fails_loudly_with_two_providers(self):
+        two = (("alpha", "anthropic", "free"), ("beta", "openai", "subscription"))
+        script = {"*": {"review": [review("REVISE", [finding("R1")])]}}
+        coord, out = self._run("adversarial", script, agents=two, judge="llm")
+        self.assertEqual(out.status, "failed")
+        self.assertIn("judge", out.reason)
+        self.assertIn("FAILURE", [e["kind"] for e in out.events])
+
+    def test_proof_cmd_judge_logs_cleared_ids(self):
+        repo = self.tmp / "repo"
+        script = {"*": {"review": [review("REVISE", [finding("R1"), finding("R2")])],
+                        "build": [toy_build_response()]}}
+        coord, ledger = make_coordinator(self.tmp, "adversarial", script, judge="proof-cmd")
+        (repo / "toy.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+        coord.config.proof_cmd = proof_cmd_for(repo)
+        out = coord.run()
+        self.assertEqual(out.status, "completed", out.reason)
+        self.assertEqual(events(coord, "JUDGE")[0]["cleared"], ["R1", "R2"])
+
     def test_build_refuses_tampered_plan(self):
         class Tamper(Coordinator):
             def _phase_build(self):
@@ -187,6 +224,21 @@ class StrategyTests(unittest.TestCase):
         for aid in coord.catalog:
             self.assertEqual(ledger.total_requests(aid), 0)
         self.assertFalse(coord.log_path.exists())
+
+    def test_dry_run_with_two_providers_drops_judge_and_says_so(self):
+        two = (("alpha", "anthropic", "free"), ("beta", "openai", "subscription"))
+        coord, ledger = make_coordinator(self.tmp, "hybrid", agents=two, judge="both")
+        allocs = coord.dry_run()
+        self.assertEqual([a.role for a in allocs], ["plan", "review", "review", "build", "inspect"])
+        self.assertEqual(len(coord.dry_run_notes), 1)
+        self.assertIn("third provider", coord.dry_run_notes[0])
+        coord2, _ = make_coordinator(self.tmp, "adversarial", agents=two, judge="proof-cmd")
+        self.assertEqual([a.role for a in coord2.dry_run()], ["plan", "review", "build", "inspect"])
+        self.assertEqual(coord2.dry_run_notes, [])
+        coord3, _ = make_coordinator(self.tmp, "adversarial", agents=two, judge="llm")
+        with self.assertRaises(AllocationError) as ctx:
+            coord3.dry_run()
+        self.assertEqual(ctx.exception.role, "judge")
 
 
 if __name__ == "__main__":

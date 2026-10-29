@@ -8,21 +8,24 @@ REVIEW_SCHEMA = (
 )
 
 PLAN_PROMPT = (
-    "You are the planner in a multi-agent loop. Task:\n\n{task}\n\n"
-    "Inspect the repository (read-only) and write an implementation plan with: goal, observable "
+    "You are the planner in a multi-agent loop. The task may ask for code, a document, data, a "
+    "configuration or any other deliverable that ends up as files in the current directory. Task:\n\n"
+    "{task}\n\nInspect the working directory (read-only) and write a plan with: goal, observable "
     "acceptance criteria, concrete approach, key decisions and trade-offs, non-goals, assumptions "
     "with sources, and exact verification commands. Respond with ONLY a JSON object "
     "{{\"plan\": \"<markdown plan>\"}}."
 )
 REVIEW_PROMPT = (
     "You are an independent reviewer (round {round}). Task:\n\n{task}\n\nPlan under review:\n\n{plan}\n\n"
-    "Read the relevant repository files (read-only). Challenge the plan with concrete evidence. "
+    "Read the relevant files in the working directory (read-only). Challenge the plan with concrete "
+    "evidence: wrong facts, unmet requirements, missing acceptance criteria, untestable claims. "
     + REVIEW_SCHEMA
 )
 REDTEAM_PROMPT = (
     "You are the RED TEAM (round {round}). Your job is to break this plan: find counter-examples, "
-    "failing inputs, security holes, missed requirements. Task:\n\n{task}\n\nPlan:\n\n{plan}\n\n"
-    "Read the repository (read-only). Every finding must carry evidence a judge can check. "
+    "failing inputs, security holes, missed requirements, unsupported claims, contradictions. "
+    "Task:\n\n{task}\n\nPlan:\n\n{plan}\n\n"
+    "Read the working directory (read-only). Every finding must carry evidence a judge can check. "
     + REVIEW_SCHEMA
 )
 JUDGE_PROMPT = (
@@ -37,25 +40,27 @@ REVISE_PROMPT = (
     "{{\"plan\": \"<revised markdown plan>\", \"dispositions\": [{{\"id\": str, \"action\": str}}]}}."
 )
 BUILD_PROMPT = (
-    "You are the builder. Implement exactly this approved plan in the current repository. Task:\n\n{task}\n\n"
+    "You are the builder. Produce exactly the deliverable in this approved plan, as files in the current "
+    "working directory (code, document, data or whatever the task names). Task:\n\n{task}\n\n"
     "Plan:\n\n{plan}\n\nProof command: {proof}. Make the proof pass. Respond with ONLY a JSON object "
     "{{\"summary\": str, \"files_changed\": [str]}}."
 )
 FIX_PROMPT = (
-    "You are the builder. The proof command failed. Fix the implementation so it passes.\n\nPlan:\n\n{plan}\n\n"
+    "You are the builder. The proof command failed. Fix the deliverable so it passes.\n\nPlan:\n\n{plan}\n\n"
     "Proof output:\n{output}\n\nRespond with ONLY a JSON object {{\"summary\": str, \"files_changed\": [str]}}."
 )
 FIX_FINDINGS_PROMPT = (
-    "You are the builder. Address these inspection findings in the code:\n{findings}\n\n"
+    "You are the builder. Address these inspection findings in the deliverable:\n{findings}\n\n"
     "Respond with ONLY a JSON object {{\"summary\": str, \"files_changed\": [str]}}."
 )
 INSPECT_PROMPT = (
     "You are an independent inspector in a FRESH session. Builder: {builder}. Pre-build commit: "
     "{pre_build_commit}. Task:\n\n{task}\n\nPlan:\n\n{plan}\n\nInspect every changed file (read-only; use "
-    "git diff against the pre-build commit plus untracked files). " + REVIEW_SCHEMA
+    "git diff against the pre-build commit plus untracked files). Judge the deliverable against the "
+    "task and the plan, whether it is code, prose, data or configuration. " + REVIEW_SCHEMA
 )
 INSPECT_REDTEAM_PROMPT = (
     "You are the RED TEAM inspector in a FRESH session. Builder: {builder}. Pre-build commit: "
-    "{pre_build_commit}. Task:\n\n{task}\n\nPlan:\n\n{plan}\n\nTry to break the implementation: edge cases, "
-    "injection, races, unmet acceptance criteria. Read-only. " + REVIEW_SCHEMA
+    "{pre_build_commit}. Task:\n\n{task}\n\nPlan:\n\n{plan}\n\nTry to break the deliverable: edge cases, "
+    "injection, races, false statements, unmet acceptance criteria. Read-only. " + REVIEW_SCHEMA
 )

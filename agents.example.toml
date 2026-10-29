@@ -39,10 +39,12 @@ provider = "openai"
 kind = "cli"
 tier = "subscription"
 # Verified live 2026-10-29 (codex-cli 0.153.4). ChatGPT accounts reject the CLI default model,
-# so pin one explicitly with -m. Reviews run in the read-only sandbox.
+# so pin one explicitly with -m. Reviews run in the read-only sandbox; builds in workspace-write,
+# as Claudex Loop does. `read_only_argv` / `write_argv` are appended by role, never both.
 argv = ["codex", "exec", "--json", "--skip-git-repo-check", "-m", "gpt-6-astra", "{prompt}"]
 model = "gpt-6-astra"
 read_only_argv = ["-s", "read-only"]
+write_argv = ["-s", "workspace-write"]
 output_format = "stream-json"
 reset = "rolling"
 caps_known = false

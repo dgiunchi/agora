@@ -1,0 +1,7 @@
+{
+  "title": "Ship a feature that nobody self-approved",
+  "strategy": "collaborative",
+  "task": "Implement slugify(text) in slugger.py so that 'python -m unittest -q' passes. The five tests in test_slugger.py are the contract: lowercase, hyphen-separated, punctuation stripped, runs of separators collapsed, accents transliterated to ASCII, empty input gives an empty string. Standard library only; do not edit the tests.",
+  "args": ["--strategy", "collaborative", "--rounds", "3"],
+  "proof_cmd": "python -m unittest -q"
+}

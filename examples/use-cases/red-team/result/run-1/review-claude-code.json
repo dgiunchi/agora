@@ -1,0 +1,93 @@
+{
+  "role": "review",
+  "agent": "claude-code",
+  "ok": true,
+  "duration_s": 354.2,
+  "exit_code": 0,
+  "timed_out": false,
+  "error": null,
+  "response": {
+    "verdict": "APPROVED",
+    "summary": "The plan satisfies every case in test_sizes.py (8 methods, 30 assertions) and the task's extra constraints (TiB, single internal space, floor rounding, non-string rejection). Walked each tested input through the planned grammar `[0-9]+(?:\\.[0-9]+)? ?[A-Za-z]*` + explicit unit table + exact integer arithmetic and found no failing input. Remaining findings are low-severity hardening and documentation gaps around Unicode case folding, non-ASCII digits, leading zeros, and Python's int digit limit.",
+    "findings": [
+      {
+        "id": "RT1-01",
+        "severity": "low",
+        "path": "sizes.py",
+        "evidence": "Plan step 3 says 'optional ASCII-letter unit' and step 4 says 'Lowercase the captured unit', but never states the regex must be compiled WITHOUT re.IGNORECASE. Python re docs (module `re`, flag IGNORECASE): 'when the Unicode patterns [a-z] or [A-Z] are used in combination with the IGNORECASE flag, they will match the 52 ASCII letters and 4 additional non-ASCII letters: İ (U+0130), ı (U+0131), ſ (U+017F), and K (U+212A)'. '\\u212a'.lower() == 'k', so an implementer who adds re.I for the case-insensitivity requirement would accept '1\\u212aB' (KELVIN SIGN) as 1000 bytes. Not covered by the plan's boundary list.",
+        "fix": "State explicitly: compile with no flags (or re.ASCII), keep the literal class [A-Za-z], and do case folding only via .lower() after the match. Add '1\\u212ab' and '1\\u017fb' to the rejection list in the verification script."
+      },
+      {
+        "id": "RT1-02",
+        "severity": "low",
+        "path": "sizes.py",
+        "evidence": "Plan correctly chooses `[0-9]` over `\\d` (re docs: `\\d` for str patterns matches any Unicode decimal digit, and int('\\u0661\\u0660') == 10), but the verification script's rejection list (`'1  KB', '1\\tKB', ..., '-0', True, [], {}`) contains no non-ASCII-digit input, so a future refactor to `\\d` would pass all planned checks and silently accept Arabic-Indic or fullwidth digits.",
+        "fix": "Add '\\u0661\\u0660MB' (Arabic-Indic 10) and '\\uff11\\uff10MB' (fullwidth 10) to the rejection list to lock in the ASCII-digit decision."
+      },
+      {
+        "id": "RT1-03",
+        "severity": "low",
+        "path": "sizes.py",
+        "evidence": "Assumptions section says 'No explicit numeric size limit is introduced beyond Python's runtime limits', but step 5 calls int() on the digit string. Since Python 3.11 (and backports 3.10.7/3.9.14/3.8.14), int() on a string longer than sys.int_info.str_digits_check_threshold (default 4300 digits) raises `ValueError: Exceeds the limit (4300 digits) for integer string conversion`. So '1'*4301 + 'B' raises ValueError with an unrelated message, and behaviour differs across Python versions. Tests do not exercise this.",
+        "fix": "Either document that inputs over 4300 digits are rejected by the runtime, or catch ValueError from int() and re-raise with the parser's own message so the error surface is uniform across versions."
+      },
+      {
+        "id": "RT1-04",
+        "severity": "low",
+        "path": "sizes.py",
+        "evidence": "Grammar `[0-9]+(?:\\.[0-9]+)?` accepts leading zeros: '007MB' -> 7000000, '00' -> 0, '0.50B' -> 0. Task text says 'malformed number' must raise ValueError but gives no example of leading zeros; test_rejects_garbage (test_sizes.py:32) does not include any. The plan does not list this as an accepted or rejected shape, so the behaviour is unspecified rather than decided.",
+        "fix": "Record the decision in the plan's assumptions (recommended: accept leading zeros, matching int()/float() semantics) and add '007MB' to the valid dict in the verification script so the choice is pinned."
+      }
+    ],
+    "coverage": [
+      "Read sizes.py (stub only, raises NotImplementedError at line 9) and test_sizes.py (8 test methods, lines 7-47); confirmed plan assumptions about both files are accurate.",
+      "Traced every assertion in test_sizes.py through the planned regex + unit table + integer arithmetic: '512','512B','1KB','10MB','2GB','1TB','1KiB','1MiB','1.5 GiB'=15*2^30//10=1610612736,'  2 gb ','3mib','1.5KB','0.5B'=5//10=0,'1.9999KiB'=19999*1024//10000=2047 all produce expected ints.",
+      "Rejection cases: '', '   ' (strip -> '' fails [0-9]+), 'abc', 'MB', '10XB' (regex matches, unit 'xb' absent from table), '1.2.3MB', '10 M B' (second space), '1,000KB', '-1KB', '-0', '+5MB' (no sign in grammar), None/10/1.5/b'10MB' (isinstance guard) all raise ValueError under the plan.",
+      "Checked task-only constraints not in tests: TiB in unit table, exactly one literal ASCII space allowed, tabs/newlines/double spaces between number and unit rejected by the literal ' ?' token.",
+      "Checked arithmetic exactness: (numerator*multiplier)//10**frac_digits is exact integer floor; no float involved; '1.000000000001TB' -> 1000000000001 as the plan claims.",
+      "Checked KeyError leak: plan explicitly converts missing table entries to ValueError, so no non-ValueError exception escapes on tested inputs.",
+      "Checked regex for catastrophic backtracking: pattern is linear with no nested quantifiers.",
+      "Checked str.strip() scope: removes Unicode whitespace and \\x1c-\\x1f; plan documents this choice, consistent with the task's 'surrounding whitespace'.",
+      "Checked unittest discovery: `python -m unittest -q` from repo root discovers test_sizes.py via the default test*.py pattern."
+    ],
+    "limitations": [
+      "Could not execute Python or the planned verification commands: every PowerShell call was blocked by a PreToolUse hook that timed out (hookify-runtime / governance-capture, Git Bash not found). All evidence is from static reading of the plan, test file, and stub plus Python documentation; the RT1-01 and RT1-03 behaviours are cited from the `re` and `int()` documentation rather than observed in this session.",
+      "Read of PLAN.md and the first read of test_sizes.py were blocked by the same hook; test_sizes.py was read successfully on retry, and the plan text was taken from the prompt, which AGORA-LOG.md identifies as the sha-recorded PLAN.md content.",
+      "No implementation exists yet, so findings target the plan's specification gaps, not observed code behaviour."
+    ]
+  },
+  "usage": {
+    "input_tokens": 162,
+    "cache_creation_input_tokens": 63258,
+    "cache_read_input_tokens": 358846,
+    "output_tokens": 10563,
+    "output_tokens_details": {
+      "thinking_tokens": 6052
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 63258,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 32,
+        "output_tokens": 3257,
+        "cache_read_input_tokens": 76551,
+        "cache_creation_input_tokens": 1470,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 1470
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  }
+}

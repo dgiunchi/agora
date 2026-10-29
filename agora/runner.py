@@ -77,6 +77,8 @@ def build_argv(spec: AgentSpec, prompt: str, *, role: str = "", read_only: bool 
     argv = [sub(x) for x in spec.argv]
     if read_only and spec.read_only_argv:
         argv += [sub(x) for x in spec.read_only_argv]
+    if not read_only and spec.write_argv:
+        argv += [sub(x) for x in spec.write_argv]
     if platform.startswith("win") and spec.node_entry:
         argv = [node, spec.node_entry] + argv[1:]
     return argv

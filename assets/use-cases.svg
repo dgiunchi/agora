@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="530" viewBox="0 0 1200 530" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+  <rect width="1200" height="530" rx="24" fill="#0b1020"/>
+  <rect x="40" y="36" width="360" height="440" rx="16" fill="#131b36" stroke="#5ac8fa" stroke-width="2"/>
+  <text x="60" y="72" font-size="19" font-weight="700" fill="#5ac8fa">1. Ship a feature nobody self-approved</text>
+  <text x="60" y="96" font-size="12" fill="#8e9bc7">collaborative · plan → review → build → proof → inspect</text>
+  <rect x="60" y="150" width="54" height="32" rx="16" fill="#0b1020" stroke="#5ac8fa" stroke-width="2"/><text x="87.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#5ac8fa">plan</text><text x="87.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">Claude</text>
+<line x1="114" y1="166" x2="117" y2="166" stroke="#8e9bc7" stroke-width="2"/><polygon points="116,162 122,166 116,170" fill="#8e9bc7"/>
+<rect x="122" y="150" width="60" height="32" rx="16" fill="#0b1020" stroke="#5ac8fa" stroke-width="2"/><text x="152.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#5ac8fa">review</text><text x="152.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">Codex</text>
+<line x1="182" y1="166" x2="185" y2="166" stroke="#8e9bc7" stroke-width="2"/><polygon points="184,162 190,166 184,170" fill="#8e9bc7"/>
+<rect x="190" y="150" width="54" height="32" rx="16" fill="#0b1020" stroke="#5ac8fa" stroke-width="2"/><text x="217.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#5ac8fa">build</text><text x="217.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">Codex†</text>
+<line x1="244" y1="166" x2="247" y2="166" stroke="#8e9bc7" stroke-width="2"/><polygon points="246,162 252,166 246,170" fill="#8e9bc7"/>
+<rect x="252" y="150" width="54" height="32" rx="16" fill="#0b1020" stroke="#f6a623" stroke-width="2"/><text x="279.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#f6a623">proof</text><text x="279.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">unittest</text>
+<line x1="306" y1="166" x2="309" y2="166" stroke="#8e9bc7" stroke-width="2"/><polygon points="308,162 314,166 308,170" fill="#8e9bc7"/>
+<rect x="314" y="150" width="60" height="32" rx="16" fill="#0b1020" stroke="#5ac8fa" stroke-width="2"/><text x="344.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#5ac8fa">inspect</text><text x="344.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">Claude✱</text>
+  <text x="60" y="240" font-size="13" fill="#b9c3e6">• a different provider reviews and inspects</text>
+<text x="60" y="262" font-size="13" fill="#b9c3e6">• approval bound to the plan's SHA256</text>
+<text x="60" y="284" font-size="13" fill="#b9c3e6">• proof must pass before anyone inspects</text>
+<text x="60" y="306" font-size="13" fill="#b9c3e6">• fixture: slugify() with 5 failing tests</text>
+  <text x="60" y="340" font-size="12" font-weight="600" fill="#5ac8fa">Live 2026-10-29: completed, 1 fallback, 5/5</text>
+  <rect x="60" y="352" width="320" height="99" rx="8" fill="#060a16" stroke="#1f2a4d"/>
+<text x="70" y="370" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0">python examples/use-cases/run.py \</text>
+<text x="70" y="387" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0">  feature-review --catalog agents.toml</text>
+<text x="70" y="404" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0"># own repo: agora run "task" \</text>
+<text x="70" y="421" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0">#  --strategy collaborative \</text>
+<text x="70" y="438" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0">#  --proof-cmd "pytest -q"</text>
+  <rect x="420" y="36" width="360" height="440" rx="16" fill="#131b36" stroke="#ff5e62" stroke-width="2"/>
+  <text x="440" y="72" font-size="19" font-weight="700" fill="#ff5e62">2. Red-team a parser before it ships</text>
+  <text x="440" y="96" font-size="12" fill="#8e9bc7">adversarial · plan → red team ⇄ revise → build → attack</text>
+  <rect x="440" y="150" width="54" height="32" rx="16" fill="#0b1020" stroke="#ff5e62" stroke-width="2"/><text x="467.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#ff5e62">plan</text><text x="467.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">Codex</text>
+<line x1="494" y1="166" x2="497" y2="166" stroke="#8e9bc7" stroke-width="2"/><polygon points="496,162 502,166 496,170" fill="#8e9bc7"/>
+<rect x="502" y="150" width="64" height="32" rx="16" fill="#0b1020" stroke="#ff5e62" stroke-width="2"/><text x="534.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#ff5e62">red team</text><text x="534.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">Claude</text>
+<line x1="566" y1="166" x2="569" y2="166" stroke="#8e9bc7" stroke-width="2"/><polygon points="568,162 574,166 568,170" fill="#8e9bc7"/>
+<rect x="574" y="150" width="54" height="32" rx="16" fill="#0b1020" stroke="#ff5e62" stroke-width="2"/><text x="601.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#ff5e62">build</text><text x="601.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">Codex</text>
+<line x1="628" y1="166" x2="631" y2="166" stroke="#8e9bc7" stroke-width="2"/><polygon points="630,162 636,166 630,170" fill="#8e9bc7"/>
+<rect x="636" y="150" width="54" height="32" rx="16" fill="#0b1020" stroke="#f6a623" stroke-width="2"/><text x="663.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#f6a623">proof</text><text x="663.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">unittest</text>
+<line x1="690" y1="166" x2="693" y2="166" stroke="#8e9bc7" stroke-width="2"/><polygon points="692,162 698,166 692,170" fill="#8e9bc7"/>
+<rect x="698" y="150" width="56" height="32" rx="16" fill="#0b1020" stroke="#ff5e62" stroke-width="2"/><text x="726.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#ff5e62">attack</text><text x="726.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">Claude✱</text><path d="M 534.0 150 C 534.0 120, 467.0 120, 467.0 150" fill="none" stroke="#ff5e62" stroke-width="2" stroke-dasharray="4 3"/><polygon points="462.0,143 467.0,151 472.0,143" fill="#ff5e62"/><text x="500.5" y="116" text-anchor="middle" font-size="10" fill="#ff5e62">revise ↺ until no material finding</text>
+  <text x="440" y="240" font-size="13" fill="#b9c3e6">• the red team's only job is to break the plan</text>
+<text x="440" y="262" font-size="13" fill="#b9c3e6">• every material finding goes back to the planner</text>
+<text x="440" y="284" font-size="13" fill="#b9c3e6">• judge: 3rd provider, proof, or both; proof wins</text>
+<text x="440" y="306" font-size="13" fill="#b9c3e6">• fixture: parse_size() with 9 tests, 15 reject cases</text>
+  <text x="440" y="340" font-size="12" font-weight="600" fill="#ff5e62">Live 2026-10-29: completed, 0 fallbacks, 8 low findings</text>
+  <rect x="440" y="352" width="320" height="99" rx="8" fill="#060a16" stroke="#1f2a4d"/>
+<text x="450" y="370" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0">python examples/use-cases/run.py \</text>
+<text x="450" y="387" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0">  red-team --catalog agents.toml</text>
+<text x="450" y="404" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0"># own repo: agora run "task" \</text>
+<text x="450" y="421" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0">#  --strategy adversarial \</text>
+<text x="450" y="438" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0">#  --proof-cmd "pytest -q"</text>
+  <rect x="800" y="36" width="360" height="440" rx="16" fill="#131b36" stroke="#c084fc" stroke-width="2"/>
+  <text x="820" y="72" font-size="19" font-weight="700" fill="#c084fc">3. Write a decision memo, not code</text>
+  <text x="820" y="96" font-size="12" fill="#8e9bc7">collaborative · the deliverable is a document</text>
+  <rect x="820" y="150" width="54" height="32" rx="16" fill="#0b1020" stroke="#c084fc" stroke-width="2"/><text x="847.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#c084fc">plan</text><text x="847.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">agent A</text>
+<line x1="874" y1="166" x2="877" y2="166" stroke="#8e9bc7" stroke-width="2"/><polygon points="876,162 882,166 876,170" fill="#8e9bc7"/>
+<rect x="882" y="150" width="60" height="32" rx="16" fill="#0b1020" stroke="#c084fc" stroke-width="2"/><text x="912.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#c084fc">review</text><text x="912.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">agent B</text>
+<line x1="942" y1="166" x2="945" y2="166" stroke="#8e9bc7" stroke-width="2"/><polygon points="944,162 950,166 944,170" fill="#8e9bc7"/>
+<rect x="950" y="150" width="54" height="32" rx="16" fill="#0b1020" stroke="#c084fc" stroke-width="2"/><text x="977.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#c084fc">build</text><text x="977.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">agent A</text>
+<line x1="1004" y1="166" x2="1007" y2="166" stroke="#8e9bc7" stroke-width="2"/><polygon points="1006,162 1012,166 1006,170" fill="#8e9bc7"/>
+<rect x="1012" y="150" width="62" height="32" rx="16" fill="#0b1020" stroke="#f6a623" stroke-width="2"/><text x="1043.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#f6a623">proof</text><text x="1043.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">check_memo</text>
+<line x1="1074" y1="166" x2="1077" y2="166" stroke="#8e9bc7" stroke-width="2"/><polygon points="1076,162 1082,166 1076,170" fill="#8e9bc7"/>
+<rect x="1082" y="150" width="60" height="32" rx="16" fill="#0b1020" stroke="#c084fc" stroke-width="2"/><text x="1112.0" y="171" text-anchor="middle" font-size="12" font-weight="700" fill="#c084fc">inspect</text><text x="1112.0" y="199" text-anchor="middle" font-size="11" fill="#8e9bc7">agent B✱</text>
+  <text x="820" y="240" font-size="13" fill="#b9c3e6">• same loop, no source code involved</text>
+<text x="820" y="262" font-size="13" fill="#b9c3e6">• proof = a script that checks structure and length</text>
+<text x="820" y="284" font-size="13" fill="#b9c3e6">• reviewer hunts wrong facts and unmet criteria</text>
+<text x="820" y="306" font-size="13" fill="#b9c3e6">• fixture: DECISION.md with six required sections</text>
+  <text x="820" y="340" font-size="12" font-weight="600" fill="#c084fc">Checker self-tested; live run pending (see README)</text>
+  <rect x="820" y="352" width="320" height="99" rx="8" fill="#060a16" stroke="#1f2a4d"/>
+<text x="830" y="370" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0">python examples/use-cases/run.py \</text>
+<text x="830" y="387" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0">  decision-memo --catalog agents.toml</text>
+<text x="830" y="404" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0"># own repo: agora run "write X.md ..." \</text>
+<text x="830" y="421" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0">#  --strategy collaborative \</text>
+<text x="830" y="438" font-family="Consolas, Menlo, monospace" font-size="11.5" fill="#d7dcf0">#  --proof-cmd "python check.py"</text>
+  <g font-size="12" fill="#b9c3e6">
+    <text x="40" y="506">text under a pill: the agent that filled the role in the recorded live run · ✱ fresh session · † after a logged fallback</text>
+    <text x="1160" y="506" text-anchor="end" fill="#8e9bc7">any two providers work; the allocator picks by quota</text>
+  </g>
+</svg>

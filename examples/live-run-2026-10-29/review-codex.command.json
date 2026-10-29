@@ -1,7 +1,7 @@
 {
   "argv": [
     "node",
-    "C:\\Users\\giunchid\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js",
+    "C:\\Users\\<user>\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js",
     "exec",
     "--json",
     "--skip-git-repo-check",

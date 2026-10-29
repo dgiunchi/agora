@@ -63,13 +63,17 @@ adversarial:    PLAN -> REVIEW(red team + judge) -> BUILD -> INSPECT(red team)
 hybrid:         PLAN -> REVIEW(collab) -> REVIEW(red team + judge) -> BUILD -> INSPECT(collab)
 ```
 
-A review phase loops up to `rounds` times. In collaborative mode every reviewer in the quorum must return `APPROVED`. In adversarial mode the red team's material findings go to the judge: with `proof-cmd` a passing proof clears everything; with `llm` an independent judge agent names the ids that still stand; with `both` the LLM judge is consulted but a failing proof means nothing clears. Whatever is left goes back to the planner as a revision, which rewrites `PLAN.md` and voids any earlier approval.
+A review phase loops up to `rounds` times. In collaborative mode every reviewer in the quorum must return `APPROVED`. In adversarial mode the red team's material findings go to the judge: with `proof-cmd` a passing proof clears everything; with `llm` an independent judge agent names the ids that still stand; with `both` the LLM judge is consulted but a failing proof means nothing clears. The judge must be independent of both the planner and the red team, so it needs a third provider. With `both` (the default) and only two providers the judge step is skipped and logged as `JUDGE by=llm skipped=true`; nothing is cleared, so every material finding goes back to the planner. With `llm` the loop fails instead, because an LLM judge was asked for explicitly. `agora run --dry-run` shows the same decision as a note. Whatever is left goes back to the planner as a revision, which rewrites `PLAN.md` and voids any earlier approval.
+
+Role-dependent flags come from the catalog: `read_only_argv` is appended for planners, reviewers, inspectors and judges; `write_argv` only for builders (Codex: `-s read-only` versus `-s workspace-write`, as in Claudex Loop). The two are never combined on one command line.
 
 `BUILD` refuses to start unless the current plan bytes match the approval. It records the pre-build commit, lets the builder work, then runs the proof command with up to `max_fix_rounds` builder fixes. `INSPECT` runs in a fresh session of a provider that did not build, records a fingerprint of the working tree, and loops up to `max_inspection_rounds` with builder fixes in between.
 
 ## Explicit fallback
 
 `Coordinator._turn` wraps every agent call. If the turn is not `ok` (rate limit, timeout, crash, non-zero exit), the coordinator checks whether the role is in `fallback_roles` and the per-turn budget is not spent, asks the allocator for `next_choice`, logs a `FALLBACK` line with `fallback_from`, `fallback_to` and `reason`, and retries with the new agent under the same independence constraints. If fallback is not allowed the loop fails with that reason. Nothing is swapped silently.
+
+A failed write turn is not necessarily a no-op: a timeout kills the process, not the edits it already made. Before and after every write turn the coordinator takes the working-tree fingerprint; if a failed attempt changed it, that agent is recorded as an author (`FALLBACK ... tree_changed=true`), the `INSPECT` line lists it under `also_touched`, and the inspector must be independent of every author, not only of the builder that finally succeeded. With two providers this can end the loop with no eligible inspector, which is the correct outcome: nobody independent is left to inspect.
 
 ## Diagnostics
 

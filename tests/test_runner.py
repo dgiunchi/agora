@@ -17,10 +17,12 @@ from .helpers import fake_spec, write_script
 class BuildArgvTests(unittest.TestCase):
     def test_substitutes_placeholders_and_read_only(self):
         s = AgentSpec(id="x", provider="p", argv=("tool", "-p", "{prompt}", "--role", "{role}"),
-                      read_only_argv=("--safe-mode",))
-        self.assertEqual(build_argv(s, "hi", role="review", platform="linux"),
-                         ["tool", "-p", "hi", "--role", "review"])
-        self.assertEqual(build_argv(s, "hi", role="review", read_only=True, platform="linux")[-1], "--safe-mode")
+                      read_only_argv=("--safe-mode",), write_argv=("-s", "workspace-write"))
+        self.assertEqual(build_argv(s, "hi", role="build", platform="linux"),
+                         ["tool", "-p", "hi", "--role", "build", "-s", "workspace-write"])
+        ro = build_argv(s, "hi", role="review", read_only=True, platform="linux")
+        self.assertEqual(ro[-1], "--safe-mode")
+        self.assertNotIn("workspace-write", ro)
 
     def test_windows_launches_npm_cli_through_node(self):
         s = AgentSpec(id="x", provider="p", argv=("claude", "-p", "{prompt}"), node_entry="C:/npm/claude/cli.js")

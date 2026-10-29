@@ -60,6 +60,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"dry-run for strategy={cfg.strategy} allocation={cfg.allocation} (no quota spent)")
         for a in allocs:
             print("  " + a.as_line())
+        for note in coord.dry_run_notes:
+            print(f"  note: {note}")
         return 0
     outcome = coord.run()
     print(f"status: {outcome.status}" + (f" ({outcome.reason})" if outcome.reason else ""))
@@ -81,14 +83,17 @@ def cmd_roles(args: argparse.Namespace) -> int:
     ledger = Ledger(_ledger_path(args.ledger))
     allocator = Allocator(catalog, ledger, strategy=args.allocation, seed=args.seed)
     cfg = LoopConfig(task="(roles preview)", strategy=args.strategy, allocation=args.allocation,
-                     quorum=args.quorum, builder=args.builder)
+                     quorum=args.quorum, builder=args.builder, judge=args.judge)
+    coord = Coordinator(cfg, catalog, ledger, allocator)
     try:
-        allocs = Coordinator(cfg, catalog, ledger, allocator).dry_run()
+        allocs = coord.dry_run()
     except AllocationError as exc:
         print(f"roles: {exc}", file=sys.stderr)
         return 2
     for a in allocs:
         print(a.as_line())
+    for note in coord.dry_run_notes:
+        print(f"note: {note}")
     return 0
 
 
@@ -178,6 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
     ro.add_argument("--strategy", choices=STRATEGIES, default="hybrid")
     ro.add_argument("--quorum", type=int, default=1)
     ro.add_argument("--builder")
+    ro.add_argument("--judge", choices=JUDGES, default="both")
     ro.set_defaults(fn=cmd_roles)
 
     q = sub.add_parser("quota", parents=[common], help="show the quota ledger")

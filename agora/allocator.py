@@ -24,6 +24,10 @@ TIER_BONUS = {"free": 1.0, "subscription": 0.5, "paid": 0.0}
 class AllocationError(RuntimeError):
     """No eligible agent for a role."""
 
+    def __init__(self, message: str, role: str | None = None) -> None:
+        super().__init__(message)
+        self.role = role
+
 
 @dataclass(frozen=True)
 class RoleRequest:
@@ -128,7 +132,7 @@ class Allocator:
         ok, rejected = self.eligible(req, independent_of)
         if not ok:
             detail = "; ".join(f"{k}: {v}" for k, v in rejected.items()) or "catalog is empty"
-            raise AllocationError(f"no eligible agent for role {req.role!r}: {detail}")
+            raise AllocationError(f"no eligible agent for role {req.role!r}: {detail}", role=req.role)
         if self._profile_pool() is not list(self.catalog.values()) and self.strategy not in STRATEGY_WEIGHTS:
             spec = ok[0]  # named profile: first eligible in declared order
             total, parts = self.score(spec, req)

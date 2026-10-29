@@ -97,15 +97,18 @@ class LoopOutcome:
         return self.status == "completed"
 
 
-def role_requests_for(strategy: str, quorum: int = 1, builder: str | None = None) -> list[RoleRequest]:
-    """The dry-run shape of a strategy: which roles, in order, with independence."""
+def role_requests_for(strategy: str, quorum: int = 1, builder: str | None = None,
+                      judge: str = "both") -> list[RoleRequest]:
+    """The dry-run shape of a strategy: which roles, in order, with independence.
+    A proof-command-only judge needs no agent, so no judge role is requested."""
     reqs = [RoleRequest("plan")]
     if strategy in ("collaborative", "hybrid"):
         for _ in range(quorum):
             reqs.append(RoleRequest("review", independent_of=("role:plan",)))
     if strategy in ("adversarial", "hybrid"):
         reqs.append(RoleRequest("review", independent_of=("role:plan",)))
-        reqs.append(RoleRequest("judge", independent_of=("role:plan", "role:review")))
+        if judge != "proof-cmd":
+            reqs.append(RoleRequest("judge", independent_of=("role:plan", "role:review")))
     reqs.append(RoleRequest("build"))
     reqs.append(RoleRequest("inspect", independent_of=("role:build",), fresh=True))
     return reqs
@@ -128,6 +131,8 @@ class Coordinator:
         self._reviewers: list[str] = []
         self._pre_build_commit: str | None = None
         self._last_proof_output = ""
+        self.dry_run_notes: list[str] = []
+        self._tree_touchers: list[str] = []   # agents whose failed write turn still changed the tree
 
     # -- paths & logging --------------------------------------------------
     @property
@@ -172,9 +177,13 @@ class Coordinator:
             self.log("ALLOCATION", **_alloc_fields(alloc))
             self.outcome.allocations.append(alloc)
             spec = self.catalog[alloc.agent_id]
+            fp_before = None if read_only else inspection_fingerprint(self.config.repo)
             result = self._run_turn(spec, req.role, prompt, artifacts_root=self.config.artifacts_root,
                                     timeout=self.config.timeout, read_only=read_only,
                                     cwd=self.config.repo, env=self.config.env)
+            # Measured before anything else is logged into the checkout: a failed write turn may
+            # still have changed files (a timeout kills the process, not its edits).
+            tree_changed = fp_before is not None and inspection_fingerprint(self.config.repo) != fp_before
             self.ledger.record(spec, req.role, duration=result.duration, ok=result.ok,
                                outcome="ok" if result.ok else (result.error or f"exit {result.exit_code}"),
                                observed_model=result.observed_model, rate_limited=result.rate_limited)
@@ -186,6 +195,9 @@ class Coordinator:
                 return alloc, result
             reason = ("rate limited" if result.rate_limited else
                       "timeout" if result.timed_out else (result.error or f"exit code {result.exit_code}"))
+            # Whoever changed the tree in a failed attempt is an author and may never inspect it.
+            if tree_changed and alloc.agent_id not in self._tree_touchers:
+                self._tree_touchers.append(alloc.agent_id)
             if req.role not in self.config.fallback_roles:
                 raise LoopFailure(f"{req.role} turn by {alloc.agent_id} failed ({reason}); "
                                   f"fallback not allowed for this role")
@@ -201,7 +213,7 @@ class Coordinator:
                                reason=reason)
             self.outcome.fallbacks.append(ev)
             self.log("FALLBACK", role=ev.role, fallback_from=ev.fallback_from, fallback_to=ev.fallback_to,
-                     reason=ev.reason)
+                     reason=ev.reason, tree_changed=tree_changed)
             alloc = nxt
             attempts += 1
 
@@ -287,11 +299,22 @@ class Coordinator:
         proof_ran = proof_ok = False
         if self.config.judge in ("proof-cmd", "both") and self.config.proof_cmd:
             proof_ran, proof_ok = True, self._run_proof()
-            self.log("JUDGE", by="proof-cmd", round=round_no, passed=proof_ok)
+            cleared = [f["id"] for f in remaining] if proof_ok and self.config.judge == "proof-cmd" else []
+            self.log("JUDGE", by="proof-cmd", round=round_no, passed=proof_ok, cleared=cleared)
             if proof_ok and self.config.judge == "proof-cmd":
                 return []
         if self.config.judge in ("llm", "both"):
             req = RoleRequest("judge", independent_of=(self._planner or "", red_id))
+            eligible, rejected = self.allocator.eligible(req)
+            if not eligible and self.config.judge == "both":
+                # No independent LLM judge (typically only two providers). Degrade
+                # conservatively and visibly: nothing is cleared, the planner must
+                # answer every red-team finding. `--judge llm` still fails loudly.
+                why = "; ".join(f"{k}: {v}" for k, v in rejected.items()) or "catalog is empty"
+                self.log("JUDGE", by="llm", round=round_no, skipped=True,
+                         reason=f"no independent judge available ({why})",
+                         unresolved=[f["id"] for f in remaining])
+                return remaining
             proof_state = "passed" if proof_ok else ("failed" if proof_ran else "not run")
             prompt = JUDGE_PROMPT.format(plan=plan_text, findings=json.dumps(remaining, indent=2),
                                          proof=proof_state)
@@ -365,7 +388,8 @@ class Coordinator:
         for round_no in range(1, self.config.max_inspection_rounds + 1):
             self.outcome.inspections += 1
             fp = inspection_fingerprint(self.config.repo)
-            req = RoleRequest("inspect", independent_of=(self._builder or "",), fresh=True)
+            authors = tuple(dict.fromkeys([self._builder or "", *self._tree_touchers]))
+            req = RoleRequest("inspect", independent_of=authors, fresh=True)
             tmpl = INSPECT_PROMPT if mode == "collaborative" else INSPECT_REDTEAM_PROMPT
             prompt = tmpl.format(task=self.config.task, plan=self.plan_path.read_text(encoding="utf-8"),
                                  pre_build_commit=self._pre_build_commit or "none", builder=self._builder)
@@ -378,7 +402,8 @@ class Coordinator:
                 raise LoopFailure(f"inspection by {alloc.agent_id} was not a valid review: {exc}") from exc
             self.log("INSPECT", round=round_no, agent=alloc.agent_id, verdict=review.verdict,
                      findings=len(review.findings), material=len(review.material_findings),
-                     fingerprint=fp, pre_build_commit=self._pre_build_commit or "none", builder=self._builder)
+                     fingerprint=fp, pre_build_commit=self._pre_build_commit or "none", builder=self._builder,
+                     also_touched=self._tree_touchers)
             if review.verdict == "BLOCKED":
                 self.outcome.status = "blocked"
                 self.outcome.reason = f"inspection BLOCKED by {alloc.agent_id}"
@@ -401,12 +426,26 @@ class Coordinator:
 
     # -- entry points -----------------------------------------------------
     def dry_run(self) -> list[Allocation]:
-        reqs = role_requests_for(self.config.strategy, self.config.quorum, self.config.builder)
+        """Allocate every role without spending quota. With `--judge both` and no
+        third provider the judge role is dropped and a note explains why."""
+        self.dry_run_notes = []
+        try:
+            return self.allocator.plan(self._dry_run_requests(self.config.judge))
+        except AllocationError as exc:
+            if self.config.judge != "both" or exc.role != "judge":
+                raise
+            self.dry_run_notes.append(
+                f"judge: {exc}. The loop will log JUDGE skipped=true and send every red-team "
+                f"finding back to the planner; add an agent from a third provider for an LLM judge.")
+            return self.allocator.plan(self._dry_run_requests("proof-cmd"))
+
+    def _dry_run_requests(self, judge: str) -> list[RoleRequest]:
+        reqs = role_requests_for(self.config.strategy, self.config.quorum, self.config.builder, judge)
         if self.config.builder:
             others = tuple(a for a in self.catalog if a != self.config.builder)
             reqs = [RoleRequest("build", exclude=others, min_capability=0.0) if r.role == "build" else r
                     for r in reqs]
-        return self.allocator.plan(reqs)
+        return reqs
 
     def run(self) -> LoopOutcome:
         self._start_log()

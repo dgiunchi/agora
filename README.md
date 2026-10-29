@@ -25,6 +25,7 @@ N coding agents. One bounded loop. Zero API bills.
 - [Does it actually work?](#does-it-actually-work)
 - [Supported agents](#supported-agents)
 - [Quick start](#quick-start)
+- [Three use cases, end to end](#three-use-cases-end-to-end)
 - [Strategies](#strategies)
 - [Allocation](#allocation)
 - [What an approval means](#what-an-approval-means)
@@ -40,6 +41,8 @@ N coding agents. One bounded loop. Zero API bills.
 **Single-agent loops have blind spots.** A model reviewing its own plan tends to approve it. [Claudex Loop](https://github.com/chaseai-yt/claudex-loop) showed that handing the plan to a *different* provider for review, and the code to a fresh session of yet another provider for inspection, catches what one model misses. But it runs on exactly two providers and stops dead when one runs out of quota.
 
 **Agora does both.** It treats whole agentic systems the way FreeLLMAPI treats models: a catalog with quota shapes, a persistent ledger of what each one has used, cooldowns on 429s, and a bandit that picks the best eligible agent for every role. Then it runs them through a Claudex-style bounded loop under a strategy you choose: collaborative, adversarial, or hybrid. When an agent is rate-limited mid-turn, the loop does not die and does not silently swap models either. It fails over to the next eligible agent and writes that down.
+
+The deliverable does not have to be code. Anything that ends up as files and can be checked by a command works: a module with tests, a decision memo with a structure checker, a data file with a validator, a config with a linter.
 
 ## What you get in 20 seconds
 
@@ -80,9 +83,9 @@ Yes, on two levels.
 | proof | `python -m unittest -q` | 2 s | Ran 5 tests, OK |
 | inspect | Codex CLI, fresh session | 43 s | **APPROVED**, 0 findings, diff checked against the pre-build commit |
 
-Codex executed the tests against the proposed algorithm in memory during review, without write access, and verified the imports were standard library only. The unedited log, plan, built code and both verdicts with token usage are in [`examples/live-run-2026-10-29/`](examples/live-run-2026-10-29/). The first attempt that day failed because Codex's default model is rejected on ChatGPT accounts: the loop logged a fallback to Claude for planning, then refused to let Claude review its own plan and stopped with the reason. That is the designed behaviour, and it is recorded too. Details in [`VALIDATION.md`](VALIDATION.md).
+Codex executed the tests against the proposed algorithm in memory during review, without write access, and verified the imports were standard library only. The unedited log, plan, built code and both verdicts with token usage are in [`examples/live-run-2026-10-29/`](examples/live-run-2026-10-29/). The first attempt that day failed because Codex's default model is rejected on ChatGPT accounts: the loop logged a fallback to Claude for planning, then refused to let Claude review its own plan and stopped with the reason. That is the designed behaviour, and it is recorded too. Details in [`VALIDATION.md`](VALIDATION.md). Later the same day two of the three bundled [use cases](#three-use-cases-end-to-end) ran live as well, one collaborative and one adversarial, and the first of them exposed a real gap in the inspection rule that is now fixed and tested.
 
-**Automatically, without spending quota.** 84 tests run on fake agent processes and disposable git repositories on every push, across Ubuntu, Windows and macOS. They cover the ledger, the allocator's hard filters across 1,000 randomised draws, the verdict schema, timeouts and process-tree kills, SHA-bound approvals, all three strategies, explicit fallback, and three end-to-end loops with a real proof command. See [Tests](#tests).
+**Automatically, without spending quota.** 91 tests run on fake agent processes and disposable git repositories on every push, across Ubuntu, Windows and macOS. They cover the ledger, the allocator's hard filters across 1,000 randomised draws, the verdict schema, timeouts and process-tree kills, SHA-bound approvals, all three strategies, explicit fallback, and three end-to-end loops with a real proof command. See [Tests](#tests).
 
 ## Supported agents
 
@@ -112,7 +115,7 @@ Any CLI with a headless mode, plus any OpenAI-compatible HTTP endpoint. The exam
 
 | Agent | Kind | Status | Notes |
 |---|---|---|---|
-| Claude Code, Codex CLI | cli | **doctor-verified** (installed, authenticated, version probed; see `VALIDATION.md`) | read-only review flags mirror Claudex Loop (`--safe-mode`, `exec -s read-only`) |
+| Claude Code, Codex CLI | cli | **tested live**, three completed loops with each tool in every role (see [use cases](#three-use-cases-end-to-end) and `VALIDATION.md`) | read-only roles get `exec -s read-only` / disallowed edit tools, builders `exec -s workspace-write` / `acceptEdits`, as in Claudex Loop |
 | Gemini CLI, Qwen Code, OpenCode, Aider, Goose, Crush, Kilo Code, Cline | cli | declared | headless argv from each tool's docs; send a PR with a `VALIDATION.md` entry once you have run one |
 | FreeLLMAPI, Ollama, vLLM, LM Studio | http | **tested** (fake server in CI) | any `/v1/chat/completions` endpoint |
 
@@ -131,6 +134,76 @@ agora run "add CSV import" --strategy hybrid --proof-cmd "pytest -q"  # the real
 
 Requirements: Python 3.11+, git, and at least two agents from different providers (the loop refuses to let a provider review itself). No pip dependencies at runtime.
 
+## Three use cases, end to end
+
+<img src="assets/use-cases.svg" alt="Three bundled use cases: feature review, red-teaming a parser, writing a decision memo" width="100%">
+
+Each use case is a tiny fixture under [`examples/use-cases/`](examples/use-cases/): a stub or a checker, a proof that fails until the task is done, and a `usecase.json` holding the task text, the flags and the proof command. One script copies the fixture into a temporary git repository and runs the loop there, so your own code is never touched:
+
+```bash
+cp agents.example.toml agents.toml                 # keep two agents from different providers
+agora agents doctor                                # installed? authenticated?
+python examples/use-cases/run.py feature-review --catalog agents.toml --dry-run   # who does what, spends nothing
+python examples/use-cases/run.py feature-review --catalog agents.toml             # 1. collaborative
+python examples/use-cases/run.py red-team       --catalog agents.toml             # 2. adversarial
+python examples/use-cases/run.py decision-memo  --catalog agents.toml             # 3. a document, not code
+```
+
+`--workdir DIR` chooses the checkout location, `--seed N` makes the allocation reproducible, `--ledger PATH` keeps the quota separate, and everything after `--` goes to `agora run` (for example `-- --timeout 900`). When a run ends you get the status on stdout and `AGORA-LOG.md`, `PLAN.md` and the deliverable in the fixture directory. The first two were run live on 2026-10-29 with Claude Code 2.1.306 and Codex CLI 0.153.4 (gpt-6-astra); the logs, plans, deliverables and verdict JSON are under each use case's `result/` folder. The third is verified by its checker and dry run and its live run is pending, as its section says.
+
+### 1. Ship a feature nobody self-approved
+
+**Use it for** features, refactors and migrations: anything with a test you can name. One provider plans, a different one reviews the plan with evidence, the builder implements, the proof runs, and a fresh session of a provider that did not build inspects the diff against the pre-build commit.
+
+```bash
+agora run "add CSV import with validation" --strategy collaborative --proof-cmd "pytest -q"
+```
+
+The bundled fixture is `slugify()` with five failing tests. Live, first run:
+
+| Role | Agent | Wall time | Result |
+|---|---|---|---|
+| plan | Claude Code | 309 s | `PLAN.md` with acceptance criteria and a verification table |
+| review | Codex, read-only | 116 s | **APPROVED**, 1 low: ran the proposed function against all five tests in memory |
+| build | Claude Code | 600 s | **timed out**, process tree killed |
+| fallback | → Codex, workspace-write | 59 s | found `slugger.py` already written, verified it, changed nothing |
+| proof | `python -m unittest -q` | 1 s | Ran 5 tests, OK |
+| inspect | Claude Code, fresh session | 208 s | **APPROVED**, 2 low (NFKD drops ß/æ/ø; `__pycache__` untracked) |
+
+That run completed, and it also exposed a gap. The killed Claude turn had already written the implementation; Codex only verified it; and the inspector was chosen to be independent of the *recorded* builder, Codex, so Claude inspected code Claude wrote. The loop now treats any agent whose failed write turn changed the working tree as an author: the `FALLBACK` line carries `tree_changed=true`, the `INSPECT` line lists `also_touched`, and the inspector must be independent of every author. With two providers that first run would now stop with `no eligible agent for role 'inspect'`, which is the honest outcome. Three fake-agent tests pin the rule. See `examples/use-cases/feature-review/result/` for both runs.
+
+### 2. Red-team a parser before it ships
+
+**Use it for** parsers, input validation, security-sensitive paths: anything where the interesting question is "what input breaks this?". The red team's only job is to break the plan; every material finding goes back to the planner until none is left; after the build a fresh red-team session attacks the code rather than the plan.
+
+```bash
+agora run "harden parse_size against malformed input" --strategy adversarial --proof-cmd "pytest -q"
+```
+
+The bundled fixture is `parse_size()` with nine tests, fifteen of them reject-cases. Live:
+
+| Role | Agent | Wall time | Result |
+|---|---|---|---|
+| plan | Codex | 90 s | `PLAN.md` with an explicit ASCII grammar and exact integer arithmetic |
+| red team | Claude Code, read-only | 354 s | **APPROVED**, 4 low: `re.IGNORECASE` would case-fold Unicode, non-ASCII digits absent from the rejection list, Python's int digit limit, leading zeros unspecified |
+| build | Codex, workspace-write | 139 s | implemented the plan; 8 test methods, 30 assertions |
+| proof | `python -m unittest -q` | 1 s | OK |
+| attack | Claude Code, fresh session | 576 s | **APPROVED**, 4 low: `str.strip()` accepts Unicode whitespace, no magnitude cap, unit table rebuilt per call, `__pycache__` untracked |
+
+Zero fallbacks, eight low findings left open for a human, none material. Because no finding was material the judge was never consulted; with a material finding and only two providers the log shows `JUDGE by=llm skipped=true` and the planner must answer it in a revision. Add a third provider and `--judge both` arbitrates instead.
+
+### 3. Write a decision memo, not code
+
+**Use it for** documents, data files, configuration: any deliverable that lands in files and can be checked mechanically. The proof here is `check_memo.py`, which checks that `DECISION.md` exists, has six level-2 sections in the required order, lists at least three options, scores them in a markdown table with at least four criteria, states a recommendation, stays between 250 and 700 words, and contains no code block. The reviewer hunts for wrong facts and unmet criteria instead of failing inputs.
+
+```bash
+agora run "write DECISION.md: a one-page memo on adopting a monorepo ..." --strategy collaborative --proof-cmd "python check_memo.py"
+```
+
+Status: the checker is self-tested (it rejects a missing or malformed memo and accepts a well-formed one), the dry run allocates the roles, and the live run on 2026-10-29 got through planning (Claude Code, 259 s) and was into the Codex review when the host machine ran out of memory and the run was stopped. It has not yet completed live; the command above is how to finish the job, and the outcome will be recorded in `VALIDATION.md` when it has.
+
+**A note on the wall times.** Claude Code turns were slow in these runs because the host machine's Claude Code had plugin hooks installed that blocked or delayed its read tools; both Claude reviewers said so in their `limitations`. That is the host's configuration rather than Agora, but it is why every turn has a `--timeout`, why a timeout is a logged fallback rather than a hang, and why the per-turn artifacts outside the checkout matter when you want to know what an agent actually saw.
+
 ## Strategies
 
 <img src="assets/strategies.svg" alt="Collaborative, adversarial and hybrid strategies" width="100%">
@@ -142,6 +215,8 @@ Requirements: Python 3.11+, git, and at least two agents from different provider
 | `hybrid` (default) | plan → peer review → red team + judge → build → inspect | anything you would ship |
 
 Tunables: `--rounds` (plan-review cap, default 5), `--quorum` (independent approvals needed), `--judge llm|proof-cmd|both` (proof commands win on conflict), `--max-fix-rounds`, `--max-inspection-rounds`, `--builder <id>`, `--no-fallback`.
+
+The LLM judge must be independent of both the planner and the red team, so it needs a third provider. With only two providers the default `--judge both` skips the judge, logs `JUDGE by=llm skipped=true`, and sends every red-team finding back to the planner; `--dry-run` tells you in advance. `--judge llm` fails loudly instead.
 
 ## Allocation
 
@@ -181,6 +256,7 @@ python -m unittest discover -s tests -t . -v
 | approval | one byte invalidates an approval, untracked files change the inspection fingerprint |
 | strategies | all three reach a terminal state inside the round cap; BLOCKED, malformed, duplicate ids and APPROVED-with-material are rejected; quorum; judge rules; tampered plan refused; fix rounds |
 | fallback | logged with `fallback_from`, `fallback_to`, `reason`; disabled per role fails loudly; independence survives fallback; budget |
+| two providers | judge skipped and logged with `--judge both`, loop still converges; `--judge llm` fails loudly; dry-run drops the judge with a note |
 | end to end | three fake agents, a toy repo, a real proof command, all three strategies, log and per-agent quota asserted |
 
 CI runs the suite on Ubuntu, Windows and macOS with Python 3.11 and 3.13, then installs the package and smokes the CLI. Live runs against real CLIs are opt-in and recorded in [`VALIDATION.md`](VALIDATION.md).

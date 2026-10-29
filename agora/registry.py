@@ -38,7 +38,8 @@ class AgentSpec:
     kind: str = "cli"
     tier: str = "free"
     argv: tuple[str, ...] = ()
-    read_only_argv: tuple[str, ...] = ()
+    read_only_argv: tuple[str, ...] = ()   # appended for reviewers, inspectors, judges, planners
+    write_argv: tuple[str, ...] = ()       # appended for builders (e.g. codex: -s workspace-write)
     resume_argv: tuple[str, ...] = ()
     node_entry: str | None = None
     endpoint: str | None = None
@@ -94,7 +95,7 @@ def validate_catalog(data: dict[str, Any]) -> list[str]:
                 errors.append(f"{where}: http agents need an endpoint URL")
             if not isinstance(a.get("model"), str) or not a.get("model"):
                 errors.append(f"{where}: http agents need a model")
-        for key in ("read_only_argv", "resume_argv"):
+        for key in ("read_only_argv", "write_argv", "resume_argv"):
             if key in a and (not isinstance(a[key], list) or not all(isinstance(x, str) for x in a[key])):
                 errors.append(f"{where}: {key} must be a list of strings")
         caps = a.get("capabilities", {})
@@ -143,6 +144,7 @@ def _spec_from_table(a: dict[str, Any]) -> AgentSpec:
         tier=a.get("tier", "free"),
         argv=tuple(a.get("argv", [])),
         read_only_argv=tuple(a.get("read_only_argv", [])),
+        write_argv=tuple(a.get("write_argv", [])),
         resume_argv=tuple(a.get("resume_argv", [])),
         node_entry=a.get("node_entry"),
         endpoint=a.get("endpoint"),

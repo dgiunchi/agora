@@ -1,0 +1,7 @@
+{
+  "title": "Write a decision memo, not code",
+  "strategy": "collaborative",
+  "task": "Write DECISION.md, a one-page decision memo for a six-person team deciding whether to move their three services into a single monorepo. Required level-2 sections, in this order: Context, Options (at least three, each with a one-line summary), Criteria (a markdown table scoring every option against at least four criteria), Recommendation (exactly one option, with the reasons), Risks, Next steps. Between 250 and 700 words. No source code. 'python check_memo.py' is the proof and must pass; read check_memo.py to see exactly what it checks and do not edit it.",
+  "args": ["--strategy", "collaborative", "--rounds", "3"],
+  "proof_cmd": "python check_memo.py"
+}
