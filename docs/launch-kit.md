@@ -41,7 +41,7 @@ Body: see the Show HN text; add the live-run table from the README and the `asse
 2. Show HN, on a weekday morning US time.
 3. r/ClaudeAI, r/ChatGPTCoding, r/LocalLLaMA, one at a time, a day apart.
 4. The awesome lists, each on its own terms (see below): awesome-claude-code only through its web issue form and not before 2026-11-12; awesome-ai-agents through its Google form, since its pull-request queue is not being merged.
-5. X / LinkedIn thread with `assets/hero.svg` rendered to PNG.
+5. Done 2026-10-30, text only: X thread https://x.com/dannox75/status/2116308624834457860 and LinkedIn https://www.linkedin.com/feed/update/urn:li:share:7522075118630625280/. A follow-up post with `assets/hero.svg` rendered to PNG can quote the thread.
 6. A short screen recording of `python examples/use-cases/run.py red-team` as the pinned asset.
 
 ## Awesome-list entries
