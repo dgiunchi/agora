@@ -27,11 +27,15 @@ from .registry import AgentSpec
 
 RATE_LIMIT_PATTERNS = [
     re.compile(p, re.IGNORECASE) for p in (
-        r"\b429\b", r"rate[ -]?limit", r"usage limit", r"quota (exceeded|exhausted|reached)",
-        r"too many requests", r"resource.?exhausted", r"limit reached",
+        # a bare 429 that is not a line number or part of a version / identifier
+        r"(?<!line )(?<![\w.])429(?![\w.])", r"rate[ -]?limit", r"usage limit",
+        r"quota (exceeded|exhausted|reached)", r"too many requests", r"resource.?exhausted",
+        r"(usage|quota|rate|request) limit reached",
     )
 ]
 ARTIFACT_FILES = ("prompt.txt", "command.json", "stdout.txt", "stderr.txt", "result.json")
+# npm's Windows shims end in a line like: "%_prog%" "%dp0%\node_modules\<pkg>\bin\cli.js" %*
+_SHIM_ENTRY = re.compile(r'"%~?dp0%?\\([^"]+\.(?:js|cjs|mjs|exe))"', re.IGNORECASE)
 
 
 @dataclass
@@ -50,6 +54,8 @@ class TurnResult:
     argv: list[str] = field(default_factory=list)
     parsed: Any = None
     observed_model: str | None = None
+    tokens_in: int = 0
+    tokens_out: int = 0
 
     def text(self) -> str:
         """Best-effort answer text (unwraps `claude -p --output-format json`)."""
@@ -84,6 +90,62 @@ def build_argv(spec: AgentSpec, prompt: str, *, role: str = "", read_only: bool 
     return argv
 
 
+def npm_shim_target(shim: Path) -> list[str] | None:
+    """The command an npm `.cmd` shim would run: `[node, entry.js]` or `[entry.exe]`.
+    None when the shim does not look like npm's or its target is missing."""
+    try:
+        text = shim.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    # The shim first probes for a bundled node.exe ("IF EXIST ...\node.exe"); the real
+    # entry is the last quoted path that exists and is not that probe.
+    for m in _SHIM_ENTRY.finditer(text):
+        entry = shim.parent / m.group(1)
+        if entry.name.lower() == "node.exe" or not entry.exists():
+            continue
+        if entry.suffix.lower() == ".exe":
+            return [str(entry)]
+        node = shim.parent / "node.exe"
+        return [str(node) if node.exists() else "node", str(entry)]
+    return None
+
+
+def resolve_launch(argv: list[str], *, platform: str = sys.platform,
+                   which: Any = shutil.which) -> list[str]:
+    """Resolve argv[0] to the executable that will actually run.
+
+    `shutil.which` honours PATHEXT, so doctor and run agree on Windows. A `.cmd` /
+    `.bat` result is never launched: CreateProcess would hand it to cmd.exe, which
+    re-parses every argument, including the prompt. npm shims are resolved to
+    their `node <entry.js>` target instead; anything else fails loudly.
+    """
+    exe = argv[0]
+    found = str(Path(exe)) if Path(exe).is_file() else which(exe)
+    if not found:
+        raise FileNotFoundError(exe)
+    if platform.startswith("win") and found.lower().endswith((".cmd", ".bat")):
+        target = npm_shim_target(Path(found))
+        if target is None:
+            raise OSError(f"{found} is a cmd.exe shim; refusing to run the prompt through cmd.exe. "
+                          f"Set node_entry in the catalog to the CLI's .js entry file")
+        return target + list(argv[1:])
+    return [found] + list(argv[1:])
+
+
+def _usage_tokens(parsed: Any) -> tuple[int, int]:
+    usage = parsed.get("usage") if isinstance(parsed, dict) else None
+    if not isinstance(usage, dict):
+        return 0, 0
+
+    def pick(*keys: str) -> int:
+        for k in keys:
+            v = usage.get(k)
+            if isinstance(v, (int, float)):
+                return int(v)
+        return 0
+    return pick("input_tokens", "prompt_tokens"), pick("output_tokens", "completion_tokens")
+
+
 def looks_rate_limited(exit_code: int | None, stdout: str, stderr: str) -> bool:
     """Keyword detection for CLIs that do not report quota errors structurally.
 
@@ -107,7 +169,12 @@ def _kill_tree(proc: subprocess.Popen) -> None:
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     else:
         try:
-            os.killpg(os.getpgid(proc.pid), 9)
+            pgid = os.getpgid(proc.pid)
+            os.killpg(pgid, 15)          # a short grace so the CLI can flush and clean up
+            try:
+                proc.wait(timeout=3)
+            except Exception:  # noqa: BLE001
+                os.killpg(pgid, 9)
         except Exception:  # noqa: BLE001 - last resort
             proc.kill()
     try:
@@ -194,13 +261,19 @@ def http_turn(spec: AgentSpec, prompt: str, *, timeout: float, env: dict[str, st
         served = data.get("model")
     except (ValueError, KeyError, IndexError, TypeError):
         return status, raw, "", "unexpected response shape"
-    return status, json.dumps({"result": text, "model": served}), "", None
+    return status, json.dumps({"result": text, "model": served, "usage": data.get("usage")}), "", None
+
+
+def default_artifacts_root() -> Path:
+    """Per-user, not the shared temp dir: artifacts hold prompts, plans and code."""
+    return Path.home() / ".agora" / "artifacts"
 
 
 def new_artifact_dir(root: str | Path | None, agent_id: str, role: str) -> Path:
-    base = Path(root) if root else Path(tempfile.gettempdir()) / "agora"
+    base = Path(root) if root else default_artifacts_root()
+    base.mkdir(mode=0o700, parents=True, exist_ok=True)
     d = base / f"{time.strftime('%Y%m%d-%H%M%S')}-{role}-{agent_id}-{uuid.uuid4().hex[:8]}"
-    d.mkdir(parents=True, exist_ok=False)
+    d.mkdir(mode=0o700, exist_ok=False)
     return d
 
 
@@ -209,10 +282,20 @@ def run_turn(spec: AgentSpec, role: str, prompt: str, *, artifacts_root: str | P
              env: dict[str, str] | None = None) -> TurnResult:
     art = new_artifact_dir(artifacts_root, spec.id, role)
     argv = build_argv(spec, prompt, role=role, read_only=read_only)
+    launch: list[str] | None = None
+    error: str | None = None
+    if spec.kind != "http":
+        try:
+            launch = resolve_launch(argv)
+        except FileNotFoundError as exc:
+            error = f"executable not found: {exc}"
+        except OSError as exc:
+            error = f"launch refused: {exc}"
     (art / "prompt.txt").write_text(prompt, encoding="utf-8")
     (art / "command.json").write_text(json.dumps({
-        "argv": argv, "cwd": str(cwd) if cwd else None, "timeout": timeout, "read_only": read_only,
-        "agent": spec.id, "role": role, "requested_model": spec.model, "kind": spec.kind,
+        "argv": argv, "resolved_argv": launch, "cwd": str(cwd) if cwd else None, "timeout": timeout,
+        "read_only": read_only, "agent": spec.id, "role": role, "requested_model": spec.model,
+        "kind": spec.kind,
     }, indent=2), encoding="utf-8")
     full_env = dict(os.environ)
     if env:
@@ -221,19 +304,16 @@ def run_turn(spec: AgentSpec, role: str, prompt: str, *, artifacts_root: str | P
     stdout = stderr = ""
     exit_code: int | None = None
     timed_out = False
-    error: str | None = None
     if spec.kind == "http":
         status, stdout, stderr, error = http_turn(spec, prompt, timeout=timeout, env=full_env)
         if status is not None:
             exit_code = 0 if 200 <= status < 300 else status
-    else:
+    elif launch is not None:
         try:
-            if shutil.which(argv[0]) is None and not Path(argv[0]).exists():
-                raise FileNotFoundError(argv[0])
             popen_kwargs: dict[str, Any] = {}
             if not sys.platform.startswith("win"):
                 popen_kwargs["start_new_session"] = True
-            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            proc = subprocess.Popen(launch, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
                                     cwd=str(cwd) if cwd else None, env=full_env, **popen_kwargs)
             try:
@@ -248,15 +328,19 @@ def run_turn(spec: AgentSpec, role: str, prompt: str, *, artifacts_root: str | P
                 except Exception:  # noqa: BLE001
                     pass
                 error = f"timeout after {timeout}s; process tree killed"
-        except FileNotFoundError as exc:
-            error = f"executable not found: {exc}"
+            except BaseException:
+                _kill_tree(proc)   # Ctrl-C or any other interruption: never leave an agent writing
+                raise
         except OSError as exc:
             error = f"launch failed: {exc}"
     duration = time.monotonic() - start
     (art / "stdout.txt").write_text(stdout or "", encoding="utf-8")
     (art / "stderr.txt").write_text(stderr or "", encoding="utf-8")
-    rate_limited = looks_rate_limited(exit_code, stdout, stderr)
+    # A killed turn is never classified by keyword: its partial output is whatever the
+    # agent was reading or echoing when it died.
+    rate_limited = False if timed_out else looks_rate_limited(exit_code, stdout, stderr)
     parsed, observed = _parse_output(spec, stdout or "")
+    tokens_in, tokens_out = _usage_tokens(parsed)
     ok = error is None and exit_code == 0 and not rate_limited and not timed_out
     if not ok and error is None and isinstance(parsed, dict) and isinstance(parsed.get("error"), str):
         error = parsed["error"][:300]  # the CLI explained the failure; keep it in the log
@@ -265,7 +349,7 @@ def run_turn(spec: AgentSpec, role: str, prompt: str, *, artifacts_root: str | P
     result = TurnResult(ok=ok, agent_id=spec.id, role=role, exit_code=exit_code, stdout=stdout or "",
                         stderr=stderr or "", artifact_dir=str(art), duration=duration,
                         rate_limited=rate_limited, timed_out=timed_out, error=error, argv=argv,
-                        parsed=parsed, observed_model=observed)
+                        parsed=parsed, observed_model=observed, tokens_in=tokens_in, tokens_out=tokens_out)
     record = asdict(result)
     (art / "result.json").write_text(json.dumps(record, indent=2, default=str), encoding="utf-8")
     return result

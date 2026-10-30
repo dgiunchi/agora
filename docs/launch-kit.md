@@ -12,9 +12,9 @@ Agora runs the coding agents you already have (Claude Code, Codex, Gemini CLI, A
 
 I stacked two ideas: FreeLLMAPI's quota router (track every free tier, fail over on 429, pick by a bandit) and Claudex Loop's cross-provider review (one model plans, a different provider reviews, a fresh session inspects the diff). Agora treats whole agentic systems the way FreeLLMAPI treats models: a catalog with quota shapes, a SQLite ledger, cooldowns, and a Thompson-sampling allocator that fills each role with the best eligible agent that is not from the provider it has to check.
 
-Strategies: collaborative (peer review with a quorum), adversarial (red team + judge, proof commands win every conflict), hybrid. Approvals are bound to the plan's SHA256; inspections to a fingerprint of the working tree. Fallback on a rate limit or timeout is explicit and logged, never silent.
+Strategies: collaborative (peer review with a quorum), adversarial (red team + judge; a failing proof command always wins), hybrid. Approvals are bound to the plan's SHA256; inspections to a fingerprint of the working tree. Fallback on a rate limit or timeout is explicit and logged, never silent.
 
-It is stdlib Python, 90-odd tests on fake agents that spend no quota, CI on three OSes. All three bundled use cases (a feature with tests, a red-teamed parser, and a decision memo with a structure checker, because the deliverable does not have to be code) have run live with Claude Code and Codex. Two of those runs found real bugs in Agora: a timed-out builder had already written the code and the fallback's "independent" inspector was the original author; and the rate-limit detector matched Agora's own log line when a reviewer echoed it. Both are fixed and tested, and the unedited logs are in the repo, failures included.
+It is stdlib Python, 118 tests on fake agents that spend no quota, CI on three OSes. Before posting this I had two independent adversarial review passes run over the code and the docs; they found 56 things, five of them release-blocking (one was a Windows quoting bug that let a quoted proof command pass vacuously). All fixed with tests, and the list of what they found is in VALIDATION.md. All three bundled use cases (a feature with tests, a red-teamed parser, and a decision memo with a structure checker, because the deliverable does not have to be code) have run live with Claude Code and Codex. Two of those runs found real bugs in Agora: a timed-out builder had already written the code and the fallback's "independent" inspector was the original author; and the rate-limit detector matched Agora's own log line when a reviewer echoed it. Both are fixed and tested, and the unedited logs are in the repo, failures included.
 
 Honest limits: it needs headless CLIs, only two providers have been exercised live so far, and a free tier late in the day may not be the smartest model. The log always says who did what.
 
@@ -31,9 +31,9 @@ Body: see the Show HN text; add the live-run table from the README and the `asse
 1. Your coding agents all come with a free or subscription quota. Alone each one is a toy. Together they are a review board. Meet Agora.
 2. One agent plans. A different provider reviews it with evidence. The builder implements. A proof command runs. A fresh session of yet another provider inspects the diff. Nobody approves their own work.
 3. A quota ledger and a bandit pick who fills each role, under the caps you actually have. Rate-limited mid-turn? Explicit, logged fallback to the next eligible agent.
-4. Three strategies: collaborative, adversarial (red team + judge, proof wins), hybrid. Approvals bound to the plan hash.
+4. Three strategies: collaborative, adversarial (red team + judge; a failing proof always wins), hybrid. Approvals bound to the plan hash, every turn bracketed by a tree fingerprint.
 5. Ran live with Claude Code and Codex. The first run found a bug in my own inspection rule. It is fixed, tested, and the log of the failure is in the repo.
-6. Stdlib Python, zero runtime deps, 90-odd tests that spend no quota. MIT. github.com/dgiunchi/agora
+6. Stdlib Python, zero runtime deps, 118 tests that spend no quota, two adversarial reviews before launch. MIT. github.com/dgiunchi/agora
 
 ## Where to post, in order
 
@@ -44,7 +44,14 @@ Body: see the Show HN text; add the live-run table from the README and the `asse
 5. X / LinkedIn thread with `assets/hero.svg` rendered to PNG.
 6. A short screen recording of `python examples/use-cases/run.py red-team` as the pinned asset.
 
+## Awesome-list entries (one PR each, keep their format)
+
+- awesome-claude-code (hesreallyhim), under workflows / orchestration: `[Agora](https://github.com/dgiunchi/agora) - Runs Claude Code, Codex and other headless CLIs through a plan / review / build / inspect loop where a different provider always reviews, with a quota ledger and explicit fallback.`
+- awesome-ai-agents (e2b-dev), under open source / multi-agent: same line, lead with "multi-agent review loop over the free tiers you already have".
+
 ## Before posting
 
 - Check CI is green on the commit you link.
-- Publish to PyPI (`pip install agora-loop` or similar; `agora` itself is likely taken) so the install line is one command.
+- PyPI: the distribution is `agora-loop` (`agora` was taken; the import name and the `agora` command stay). `.github/workflows/publish.yml` publishes on every GitHub release through PyPI trusted publishing, so no token is stored. One-time setup on pypi.org, before the release: Your account > Publishing > add a pending publisher with owner `dgiunchi`, repository `agora`, workflow `publish.yml`, environment `pypi`. Creating the GitHub release then publishes; if the publisher was added later, run the workflow once by hand from the Actions tab.
+- After the package is on PyPI, flip the first Quick-start line in README.md to `pipx install agora-loop` and put the badge back under the others: `[![PyPI](https://img.shields.io/pypi/v/agora-loop.svg)](https://pypi.org/project/agora-loop/)`.
+- GitHub social preview: Settings > General > Social preview, upload a 1280x640 PNG of `assets/hero.svg` (render it in any browser and screenshot; GitHub does not accept SVG there).

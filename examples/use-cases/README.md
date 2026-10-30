@@ -5,14 +5,14 @@ Three small, complete scenarios you can run against your own agents in a few min
 | Directory | Strategy | Deliverable | Proof |
 |---|---|---|---|
 | [`feature-review/`](feature-review/) | collaborative | `slugify()` with five failing tests | `python -m unittest -q` |
-| [`red-team/`](red-team/) | adversarial | `parse_size()` with nine failing tests, most of them reject-cases | `python -m unittest -q` |
+| [`red-team/`](red-team/) | adversarial | `parse_size()` with eight failing tests, three of which drive fifteen reject-cases | `python -m unittest -q` |
 | [`decision-memo/`](decision-memo/) | collaborative | `DECISION.md`, a one-page memo with six required sections | `python check_memo.py` |
 
 ## Run one
 
 ```bash
-cp agents.example.toml agents.toml          # keep two agents from different providers
-agora agents doctor                         # installed, authenticated, version
+agora agents init                           # writes agents.toml; keep two agents from different providers
+agora agents doctor                         # on PATH? which version? what exactly would run?
 python examples/use-cases/run.py feature-review --catalog agents.toml --dry-run   # who does what, free
 python examples/use-cases/run.py feature-review --catalog agents.toml             # the real loop
 python examples/use-cases/run.py red-team       --catalog agents.toml

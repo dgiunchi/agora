@@ -128,6 +128,17 @@ def validate_catalog(data: dict[str, Any]) -> list[str]:
                 for cap in ("requests", "tokens"):
                     if cap in w and w[cap] is not None and (not isinstance(w[cap], int) or w[cap] < 0):
                         errors.append(f"{where}: window {name!r} {cap} must be a non-negative integer")
+    profiles = data.get("profiles", {})
+    if not isinstance(profiles, dict):
+        errors.append("profiles must be a table of name = [agent ids]")
+    else:
+        for name, ids in profiles.items():
+            if not isinstance(ids, list) or not ids or not all(isinstance(x, str) for x in ids):
+                errors.append(f"profiles.{name}: must be a non-empty list of agent ids")
+                continue
+            for x in ids:
+                if x not in seen:
+                    errors.append(f"profiles.{name}: unknown agent {x!r}")
     return errors
 
 
@@ -168,11 +179,23 @@ def catalog_from_dict(data: dict[str, Any]) -> dict[str, AgentSpec]:
     return {a["id"]: _spec_from_table(a) for a in data["agents"]}
 
 
-def load_catalog(path: str | Path) -> dict[str, AgentSpec]:
-    """Load and validate a TOML catalog. BOM-tolerant."""
+def _load_toml(path: str | Path) -> dict[str, Any]:
     text = Path(path).read_text(encoding="utf-8-sig")
     try:
-        data = tomllib.loads(text)
+        return tomllib.loads(text)
     except tomllib.TOMLDecodeError as exc:
         raise CatalogError(f"{path}: {exc}") from exc
-    return catalog_from_dict(data)
+
+
+def load_catalog(path: str | Path) -> dict[str, AgentSpec]:
+    """Load and validate a TOML catalog. BOM-tolerant."""
+    return catalog_from_dict(_load_toml(path))
+
+
+def load_profiles(path: str | Path) -> dict[str, list[str]]:
+    """The optional `[profiles]` table: name = [agent ids], in the order to try them."""
+    data = _load_toml(path)
+    errors = validate_catalog(data)
+    if errors:
+        raise CatalogError("; ".join(errors))
+    return {k: list(v) for k, v in data.get("profiles", {}).items()}

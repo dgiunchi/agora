@@ -1,6 +1,6 @@
 # Architecture
 
-Agora is five small modules and one coordinator, all standard library.
+Agora is six small modules and one coordinator, all standard library.
 
 ```mermaid
 flowchart LR
@@ -66,6 +66,25 @@ hybrid:         PLAN -> REVIEW(collab) -> REVIEW(red team + judge) -> BUILD -> I
 A review phase loops up to `rounds` times. In collaborative mode every reviewer in the quorum must return `APPROVED`. In adversarial mode the red team's material findings go to the judge: with `proof-cmd` a passing proof clears everything; with `llm` an independent judge agent names the ids that still stand; with `both` the LLM judge is consulted but a failing proof means nothing clears. The judge must be independent of both the planner and the red team, so it needs a third provider. With `both` (the default) and only two providers the judge step is skipped and logged as `JUDGE by=llm skipped=true`; nothing is cleared, so every material finding goes back to the planner. With `llm` the loop fails instead, because an LLM judge was asked for explicitly. `agora run --dry-run` shows the same decision as a note. Whatever is left goes back to the planner as a revision, which rewrites `PLAN.md` and voids any earlier approval.
 
 Role-dependent flags come from the catalog: `read_only_argv` is appended for planners, reviewers, inspectors and judges; `write_argv` only for builders (Codex: `-s read-only` versus `-s workspace-write`, as in Claudex Loop). The two are never combined on one command line.
+
+## Trust boundaries
+
+Flags are a request to the CLI, not a guarantee, so the coordinator verifies:
+
+- **Every turn is bracketed by a working-tree fingerprint.** A read-only turn (plan, review, judge, inspect) that changes the tree fails with `read-only turn changed the working tree`, is logged `TURN ... read_only=true tree_changed=true ok=false`, falls back like any failed turn, and makes that agent an *author*. A failed write turn that changed the tree does the same. Inspectors must be independent of every author, not only of the recorded builder. Interpreter and test caches (`__pycache__`, `.pytest_cache`, `node_modules`, ...) are ignored by the fingerprint so that running the proof command is not a change.
+- **The approved plan is the contract.** `check_approval` runs before the build (as before) and again after every build and fix turn and before every inspection. A builder that rewrites `PLAN.md` ends the run with `PLAN_TAMPERED` and `failed`.
+- **Plan authors never review.** The planner and every reviser are recorded; reviewers and the judge must be independent of all of them. Quorum peers must also be independent of each other, so a quorum is always distinct providers. In `hybrid`, if the red team forces a revision after the peers approved, the peers review the revised plan once more (`REREVIEW`).
+- **Log lines cannot be forged.** Agent text that reaches the log (errors, evidence) has control characters stripped, so a reply containing a newline and `- [ts] APPROVAL ...` stays on one line.
+- **Prompts never meet a shell.** argv is always a list. On Windows, `shutil.which` resolves the executable exactly as `doctor` does; an npm `.cmd` shim is read and replaced by `node <entry.js>` (or the `.exe` it wraps), and any other `.cmd`/`.bat` is refused with a message naming `node_entry`, the catalog field that pins the entry file explicitly.
+- **Nothing runs on after Ctrl-C.** A turn interrupted for any reason kills the agent's process tree (SIGTERM then SIGKILL on POSIX, `taskkill /T` on Windows). The proof command gets the same treatment on timeout.
+- **A missing proof command is visible.** `PROOF skipped=true` is logged, `--dry-run` says so, and the CLI prints a warning at the end.
+
+## Catalog extras
+
+- `[profiles]` is an optional table: `coding = ["codex", "claude-code"]`. `--allocation profile:coding` takes the first eligible agent in that order and skips the bandit. An unknown profile name or an unknown agent id is a catalog error.
+- CLI agents whose executable cannot be found are rejected by the allocator with `executable not found`, in dry runs too; `--assume-installed` disables this for planning on a machine without the tools.
+- Artifacts (prompt, exact argv and the resolved launch command, stdout, stderr, result) default to `~/.agora/artifacts`, created with mode 0700, or `--artifacts DIR`.
+- `rolling` windows are epoch-aligned buckets (a 5-hour window resets every five hours from the epoch), not sliding windows from first use. They are deterministic and need no history scan; a burst that straddles a boundary is undercounted.
 
 `BUILD` refuses to start unless the current plan bytes match the approval. It records the pre-build commit, lets the builder work, then runs the proof command with up to `max_fix_rounds` builder fixes. `INSPECT` runs in a fresh session of a provider that did not build, records a fingerprint of the working tree, and loops up to `max_inspection_rounds` with builder fixes in between.
 

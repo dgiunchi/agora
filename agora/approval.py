@@ -61,21 +61,38 @@ def current_commit(repo: str | Path) -> str | None:
     return out.strip() if out else None
 
 
+NOISE_DIRS = frozenset({"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox",
+                        ".venv", "venv", "node_modules", ".git"})
+NOISE_SUFFIXES = (".pyc", ".pyo")
+
+
+def _is_noise(rel: str) -> bool:
+    """Caches that a read-only turn legitimately creates by running the proof command."""
+    parts = rel.replace("\\", "/").split("/")
+    return any(p in NOISE_DIRS for p in parts) or rel.endswith(NOISE_SUFFIXES)
+
+
 def inspection_fingerprint(repo: str | Path) -> str:
-    """SHA256 over tracked changes (staged and unstaged) plus untracked file contents."""
+    """SHA256 over tracked changes (staged and unstaged) plus untracked file contents.
+    Interpreter and test caches are ignored so that running the proof command does
+    not count as changing the tree."""
     repo = Path(repo)
     h = hashlib.sha256()
     status = _git(repo, "status", "--porcelain=v1", "--untracked-files=all")
     if status is None:
         for p in sorted(x for x in repo.rglob("*") if x.is_file()):
-            h.update(str(p.relative_to(repo)).encode())
+            rel = str(p.relative_to(repo))
+            if _is_noise(rel):
+                continue
+            h.update(rel.encode())
             h.update(p.read_bytes())
         return h.hexdigest()
-    h.update(status.encode())
+    lines = [ln for ln in status.splitlines() if not _is_noise(ln[3:].strip().strip('"'))]
+    h.update("\n".join(lines).encode())
     h.update((_git(repo, "diff", "HEAD") or "").encode())
-    for line in status.splitlines():
+    for line in lines:
         if line.startswith("??"):
-            rel = line[3:].strip()
+            rel = line[3:].strip().strip('"')
             p = repo / rel
             if p.is_file():
                 h.update(rel.encode())

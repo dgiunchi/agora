@@ -50,7 +50,8 @@ class CliTests(unittest.TestCase):
     def _run(self, *args):
         buf = io.StringIO()
         with redirect_stdout(buf):
-            code = main(list(args))
+            # CI runners have none of the CLIs installed; dry runs may still plan with the example catalog
+            code = main([*args, "--assume-installed"])
         return code, buf.getvalue()
 
     def test_dry_run_prints_allocation_and_spends_nothing(self):

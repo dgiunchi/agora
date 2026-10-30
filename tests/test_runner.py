@@ -57,6 +57,9 @@ class BuildArgvTests(unittest.TestCase):
         echoed_log = "- [2026-10-29T15:01:59Z] TURN role=plan agent=x ok=true rate_limited=false"
         self.assertFalse(looks_rate_limited(0, echoed_log, "HTTP 429 seen in a file"))
         self.assertFalse(looks_rate_limited(1, echoed_log, ""))   # rate_limited= is not a rate limit
+        self.assertFalse(looks_rate_limited(1, "", 'File "x.py", line 429, in main'))   # a line number
+        self.assertFalse(looks_rate_limited(1, "", "context limit reached, truncating"))
+        self.assertTrue(looks_rate_limited(1, "", "usage limit reached for this window"))
 
 
 class RunTurnTests(unittest.TestCase):

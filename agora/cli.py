@@ -5,7 +5,6 @@ import argparse
 import json
 import os
 import shlex
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -14,21 +13,48 @@ from . import __version__
 from .allocator import AllocationError, Allocator
 from .coordinator import ALL_ROLES, JUDGES, STRATEGIES, Coordinator, LoopConfig
 from .ledger import Ledger
-from .registry import CatalogError, load_catalog
-from .runner import build_argv
+from .registry import CatalogError, load_catalog, load_profiles
+from .runner import build_argv, resolve_launch
 
-DEFAULT_CATALOG_NAMES = ("agents.toml", "agents.example.toml")
+DEFAULT_CATALOG_NAMES = ("agents.toml",)
 
 
 def _find_catalog(explicit: str | None) -> Path:
     if explicit:
-        return Path(explicit)
+        p = Path(explicit)
+        if not p.is_file():
+            raise SystemExit(f"catalog not found: {p}")
+        return p
     for name in DEFAULT_CATALOG_NAMES:
         for base in (Path.cwd(), Path.home() / ".agora"):
             p = base / name
             if p.exists():
                 return p
-    raise SystemExit("no catalog found: pass --catalog or create agents.toml (see agents.example.toml)")
+    raise SystemExit("no catalog found: run `agora agents init` to write agents.toml here, "
+                     "or pass --catalog")
+
+
+def split_command(text: str, *, windows: bool = os.name == "nt") -> list[str]:
+    """Split a quoted command line into argv.
+
+    POSIX rules on POSIX. On Windows, shlex's non-POSIX mode keeps the quote
+    characters inside each token (so `python -c "import x"` would pass a string
+    literal to Python and exit 0); strip them so the proof really runs.
+    """
+    if not windows:
+        return shlex.split(text, posix=True)
+    out = []
+    for tok in shlex.split(text, posix=False):
+        if len(tok) >= 2 and tok[0] == tok[-1] and tok[0] in "\"'":
+            tok = tok[1:-1]
+        out.append(tok)
+    return out
+
+
+def _allocator(args: argparse.Namespace, catalog, ledger, path: Path) -> Allocator:
+    return Allocator(catalog, ledger, strategy=args.allocation, seed=args.seed,
+                     profiles=load_profiles(path),
+                     require_installed=not getattr(args, "assume_installed", False))
 
 
 def _ledger_path(explicit: str | None) -> str:
@@ -40,17 +66,19 @@ def _ledger_path(explicit: str | None) -> str:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    catalog = load_catalog(_find_catalog(args.catalog))
+    path = _find_catalog(args.catalog)
+    catalog = load_catalog(path)
     ledger = Ledger(_ledger_path(args.ledger))
-    allocator = Allocator(catalog, ledger, strategy=args.allocation, seed=args.seed)
+    allocator = _allocator(args, catalog, ledger, path)
     cfg = LoopConfig(task=args.task, strategy=args.strategy, allocation=args.allocation, rounds=args.rounds,
                      max_fix_rounds=args.max_fix_rounds, max_inspection_rounds=args.max_inspection_rounds,
                      quorum=args.quorum, judge=args.judge,
-                     proof_cmd=shlex.split(args.proof_cmd, posix=os.name != "nt") if args.proof_cmd else None,
+                     proof_cmd=split_command(args.proof_cmd) if args.proof_cmd else None,
                      repo=Path(args.repo), plan_file=args.plan, log_file=args.log, timeout=args.timeout,
                      builder=args.builder, artifacts_root=Path(args.artifacts) if args.artifacts else None,
                      fallback_roles=() if args.no_fallback else ALL_ROLES)
     coord = Coordinator(cfg, catalog, ledger, allocator)
+    print(f"catalog: {path}")
     if args.dry_run:
         try:
             allocs = coord.dry_run()
@@ -63,8 +91,13 @@ def cmd_run(args: argparse.Namespace) -> int:
         for note in coord.dry_run_notes:
             print(f"  note: {note}")
         return 0
+    if not cfg.repo.is_dir():
+        print(f"run: --repo {cfg.repo} is not a directory", file=sys.stderr)
+        return 2
     outcome = coord.run()
     print(f"status: {outcome.status}" + (f" ({outcome.reason})" if outcome.reason else ""))
+    if outcome.proof_skipped:
+        print("warning: no --proof-cmd was given; nothing mechanical checked the deliverable")
     print(f"plan: {coord.plan_path}  sha256: {outcome.plan_sha256}")
     print(f"rounds: {outcome.rounds_used}  inspections: {outcome.inspections}  "
           f"fallbacks: {len(outcome.fallbacks)}")
@@ -79,9 +112,10 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_roles(args: argparse.Namespace) -> int:
-    catalog = load_catalog(_find_catalog(args.catalog))
+    path = _find_catalog(args.catalog)
+    catalog = load_catalog(path)
     ledger = Ledger(_ledger_path(args.ledger))
-    allocator = Allocator(catalog, ledger, strategy=args.allocation, seed=args.seed)
+    allocator = _allocator(args, catalog, ledger, path)
     cfg = LoopConfig(task="(roles preview)", strategy=args.strategy, allocation=args.allocation,
                      quorum=args.quorum, builder=args.builder, judge=args.judge)
     coord = Coordinator(cfg, catalog, ledger, allocator)
@@ -122,36 +156,66 @@ def cmd_quota(args: argparse.Namespace) -> int:
 
 
 def cmd_agents(args: argparse.Namespace) -> int:
+    if args.agents_cmd == "init":
+        return _agents_init(Path(args.catalog or "agents.toml"), force=args.force)
     catalog = load_catalog(_find_catalog(args.catalog))
     if args.agents_cmd == "list":
         for s in catalog.values():
             caps = " ".join(f"{k}={v:.1f}" for k, v in sorted(s.capabilities.items()))
             print(f"{s.id:<18}{s.provider:<12}{s.kind:<5}{s.tier:<13}{s.model or 'cli-default':<24}{caps}")
         return 0
+    rows = _doctor(catalog, probe_timeout=20.0)
     bad = 0
-    for s in catalog.values():
-        if s.kind == "http":
-            has_key = bool(s.api_key_env and os.environ.get(s.api_key_env))
-            print(f"{s.id:<18} http     endpoint={s.endpoint}  model={s.model}  "
-                  f"key_env={'set' if has_key else 'missing'}")
-            continue
-        argv = build_argv(s, "x", role="doctor")
-        exe = shutil.which(argv[0]) or (argv[0] if Path(argv[0]).exists() else None)
-        if not exe:
-            print(f"{s.id:<18} MISSING  {argv[0]} not on PATH")
-            bad += 1
-            continue
-        via_node = bool(s.node_entry) and argv[0] != s.argv[0]
-        probe = [exe, argv[1], "--version"] if via_node else [exe, "--version"]
-        try:
-            out = subprocess.run(probe, capture_output=True, text=True, timeout=20, check=False)
-            blob = (out.stdout or out.stderr).strip()
-            ver = blob.splitlines()[0] if blob else "?"
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            ver = f"version probe failed: {exc}"
-            bad += 1
-        print(f"{s.id:<18} ok       {exe}  {ver}")
+    for status, line in rows:
+        bad += status != "ok"
+        print(line)
+    if bad:
+        print(f"{bad} agent(s) cannot run here. Edit the catalog to keep only the agents you have; "
+              f"the allocator skips agents whose executable is missing.")
     return 1 if bad else 0
+
+
+def _agents_init(dest: Path, *, force: bool) -> int:
+    """Write the bundled example catalog so a pip/pipx install has something to edit."""
+    from importlib import resources
+    if dest.exists() and not force:
+        print(f"{dest} exists; pass --force to overwrite", file=sys.stderr)
+        return 2
+    text = (resources.files("agora") / "agents.example.toml").read_text(encoding="utf-8")
+    dest.write_text(text, encoding="utf-8")
+    print(f"wrote {dest}: now delete the agents you do not have and run `agora agents doctor`")
+    return 0
+
+
+def _probe(spec) -> tuple[str, str]:
+    """One doctor row: (status, line). ok | WARN | MISSING. Never spends quota."""
+    sid = f"{spec.id:<18}"
+    if spec.kind == "http":
+        has_key = bool(spec.api_key_env and os.environ.get(spec.api_key_env))
+        return "ok", f"{sid} http     endpoint={spec.endpoint}  model={spec.model}  key_env={'set' if has_key else 'missing'}"
+    argv = build_argv(spec, "x", role="doctor")
+    try:
+        launch = resolve_launch(argv)   # exactly what `agora run` would execute
+    except FileNotFoundError:
+        return "MISSING", f"{sid} MISSING  {argv[0]} not on PATH"
+    except OSError as exc:
+        return "WARN", f"{sid} WARN     {exc}"
+    exe = launch[0] if len(launch) == 1 or not launch[1].lower().endswith((".js", ".cjs", ".mjs")) else " ".join(launch[:2])
+    probe = launch[:2] + ["--version"] if launch[1:2] and launch[1].lower().endswith((".js", ".cjs", ".mjs")) else [launch[0], "--version"]
+    try:
+        out = subprocess.run(probe, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                             timeout=20, check=False, stdin=subprocess.DEVNULL)
+        blob = (out.stdout or out.stderr).strip()
+        ver = blob.splitlines()[0] if blob else "?"
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return "WARN", f"{sid} WARN     {exe}  --version did not answer: {exc}"
+    return "ok", f"{sid} ok       {exe}  {ver}"
+
+
+def _doctor(catalog, *, probe_timeout: float) -> list[tuple[str, str]]:
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return list(pool.map(_probe, catalog.values()))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -161,8 +225,10 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--catalog", help="agents.toml path (default: ./agents.toml or ~/.agora/)")
     common.add_argument("--ledger", help="SQLite ledger path (default: ~/.agora/ledger.sqlite)")
     common.add_argument("--allocation", default="auto:smart",
-                        help="auto:smart | auto:fast | auto:cheap | profile:<name>")
+                        help="auto:smart | auto:fast | auto:cheap | profile:<name> (a [profiles] entry in the catalog)")
     common.add_argument("--seed", type=int, default=None, help="seed the bandit for reproducible allocation")
+    common.add_argument("--assume-installed", action="store_true",
+                        help="do not skip agents whose executable is missing (dry runs on another machine)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     r = sub.add_parser("run", parents=[common], help="run one loop")
@@ -198,18 +264,32 @@ def build_parser() -> argparse.ArgumentParser:
                    help="drop learned caps and cooldown for AGENT (after a misdetected rate limit)")
     q.set_defaults(fn=cmd_quota)
 
-    a = sub.add_parser("agents", parents=[common], help="list or doctor the catalog")
-    a.add_argument("agents_cmd", choices=("list", "doctor"))
+    a = sub.add_parser("agents", parents=[common], help="init, list or doctor the catalog")
+    a.add_argument("agents_cmd", choices=("init", "list", "doctor"),
+                   help="init writes the bundled example catalog to ./agents.toml (or --catalog PATH)")
+    a.add_argument("--force", action="store_true", help="init: overwrite an existing catalog")
     a.set_defaults(fn=cmd_agents)
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(errors="replace")   # agent text on a cp1252 console must not crash the run
+            except (ValueError, OSError):
+                pass
     args = build_parser().parse_args(argv)
     try:
         return int(args.fn(args))
     except CatalogError as exc:
         print(f"catalog error: {exc}", file=sys.stderr)
+        return 2
+    except AllocationError as exc:
+        print(f"allocation error: {exc}", file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
 
 

@@ -1,10 +1,20 @@
-# Agora catalog. Copy to agents.toml and keep only the agents you have.
+# Agora catalog. `agora agents init` writes this file as agents.toml; keep only
+# the agents you have, then `agora agents doctor`.
 #
 # Every CLI below has a headless / non-interactive mode. Quota shapes are the
 # publicly documented free or subscription limits as of October 2026; set
 # caps_known = false where the vendor does not publish a number and the
 # ledger will learn the cap from the first rate limit. Capabilities are priors
 # in [0, 1] per role; the bandit refines them from observed reliability.
+#
+# Windows: npm installs these CLIs as .cmd shims. Agora never runs a shim
+# through cmd.exe (it would re-parse the prompt); it reads the shim and runs
+# `node <entry.js>` instead. If a shim cannot be resolved, pin the entry file:
+#   node_entry = 'C:\Users\you\AppData\Roaming\npm\node_modules\@openai\codex\bin\codex.js'
+#
+# read_only_argv is appended for planners, reviewers, judges and inspectors,
+# write_argv only for builders. Flags are a request: a read-only turn that
+# changes the working tree fails regardless of what the CLI promised.
 
 # ---- Anthropic -------------------------------------------------------------
 [[agents]]
@@ -66,8 +76,11 @@ id = "gemini-cli"
 provider = "google"
 kind = "cli"
 tier = "free"
+# `--approval-mode plan` is Gemini CLI's read-only mode (`--sandbox` is a container, not
+# read-only). Builders need an auto-approval mode to edit files headlessly.
 argv = ["gemini", "-p", "{prompt}", "--output-format", "json"]
-read_only_argv = ["--sandbox"]
+read_only_argv = ["--approval-mode", "plan"]
+write_argv = ["--approval-mode", "auto_edit"]
 output_format = "json"
 reset = "utc-midnight"
 caps_known = true
@@ -286,3 +299,10 @@ build = 0.2
 inspect = 0.4
 judge = 0.6
 research = 0.3
+
+# ---- Profiles (optional) -----------------------------------------------------
+# `--allocation profile:<name>` takes the first eligible agent in the declared
+# order and skips the bandit. Unknown names or agent ids are catalog errors.
+# [profiles]
+# coding = ["codex", "claude-code", "gemini-cli"]
+# cheap = ["gemini-cli", "qwen-code", "freellmapi"]

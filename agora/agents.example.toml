@@ -1,0 +1,308 @@
+# Agora catalog. `agora agents init` writes this file as agents.toml; keep only
+# the agents you have, then `agora agents doctor`.
+#
+# Every CLI below has a headless / non-interactive mode. Quota shapes are the
+# publicly documented free or subscription limits as of October 2026; set
+# caps_known = false where the vendor does not publish a number and the
+# ledger will learn the cap from the first rate limit. Capabilities are priors
+# in [0, 1] per role; the bandit refines them from observed reliability.
+#
+# Windows: npm installs these CLIs as .cmd shims. Agora never runs a shim
+# through cmd.exe (it would re-parse the prompt); it reads the shim and runs
+# `node <entry.js>` instead. If a shim cannot be resolved, pin the entry file:
+#   node_entry = 'C:\Users\you\AppData\Roaming\npm\node_modules\@openai\codex\bin\codex.js'
+#
+# read_only_argv is appended for planners, reviewers, judges and inspectors,
+# write_argv only for builders. Flags are a request: a read-only turn that
+# changes the working tree fails regardless of what the CLI promised.
+
+# ---- Anthropic -------------------------------------------------------------
+[[agents]]
+id = "claude-code"
+provider = "anthropic"
+kind = "cli"
+tier = "subscription"
+# Verified live 2026-10-29 (Claude Code 2.1.306). The builder gets edit permission and python;
+# read-only roles disallow every mutating tool. --permission-mode repeats; the last one wins.
+argv = ["claude", "-p", "{prompt}", "--output-format", "json", "--permission-mode", "acceptEdits", "--allowedTools", "Read", "Glob", "Grep", "Edit", "Write", "MultiEdit", "Bash(python*)"]
+read_only_argv = ["--disallowedTools", "Edit", "Write", "MultiEdit", "NotebookEdit", "Bash", "--permission-mode", "dontAsk"]
+resume_argv = ["--resume"]
+output_format = "json"
+reset = "rolling"
+caps_known = false
+context_window = 200000
+[agents.capabilities]
+plan = 0.95
+review = 0.95
+build = 0.9
+inspect = 0.95
+judge = 0.9
+research = 0.8
+[[agents.windows]]
+name = "5h"
+seconds = 18000
+
+# ---- OpenAI ----------------------------------------------------------------
+[[agents]]
+id = "codex"
+provider = "openai"
+kind = "cli"
+tier = "subscription"
+# Verified live 2026-10-29 (codex-cli 0.153.4). ChatGPT accounts reject the CLI default model,
+# so pin one explicitly with -m. Reviews run in the read-only sandbox; builds in workspace-write,
+# as Claudex Loop does. `read_only_argv` / `write_argv` are appended by role, never both.
+argv = ["codex", "exec", "--json", "--skip-git-repo-check", "-m", "gpt-6-astra", "{prompt}"]
+model = "gpt-6-astra"
+read_only_argv = ["-s", "read-only"]
+write_argv = ["-s", "workspace-write"]
+output_format = "stream-json"
+reset = "rolling"
+caps_known = false
+context_window = 200000
+[agents.capabilities]
+plan = 0.9
+review = 0.95
+build = 0.9
+inspect = 0.95
+judge = 0.9
+research = 0.7
+[[agents.windows]]
+name = "5h"
+seconds = 18000
+
+# ---- Google ----------------------------------------------------------------
+[[agents]]
+id = "gemini-cli"
+provider = "google"
+kind = "cli"
+tier = "free"
+# `--approval-mode plan` is Gemini CLI's read-only mode (`--sandbox` is a container, not
+# read-only). Builders need an auto-approval mode to edit files headlessly.
+argv = ["gemini", "-p", "{prompt}", "--output-format", "json"]
+read_only_argv = ["--approval-mode", "plan"]
+write_argv = ["--approval-mode", "auto_edit"]
+output_format = "json"
+reset = "utc-midnight"
+caps_known = true
+context_window = 1000000
+[agents.capabilities]
+plan = 0.85
+review = 0.85
+build = 0.8
+inspect = 0.85
+judge = 0.85
+research = 0.9
+[[agents.windows]]
+name = "minute"
+seconds = 60
+requests = 60
+[[agents.windows]]
+name = "day"
+seconds = 86400
+requests = 1000
+
+# ---- Alibaba ---------------------------------------------------------------
+[[agents]]
+id = "qwen-code"
+provider = "alibaba"
+kind = "cli"
+tier = "free"
+argv = ["qwen", "-p", "{prompt}", "--output-format", "json"]
+output_format = "json"
+reset = "utc-midnight"
+caps_known = true
+context_window = 1000000
+[agents.capabilities]
+plan = 0.75
+review = 0.75
+build = 0.8
+inspect = 0.75
+judge = 0.7
+research = 0.6
+[[agents.windows]]
+name = "minute"
+seconds = 60
+requests = 60
+[[agents.windows]]
+name = "day"
+seconds = 86400
+requests = 2000
+
+# ---- OpenCode (provider-agnostic; free tier via OpenCode Zen) ----------------
+[[agents]]
+id = "opencode"
+provider = "opencode"
+kind = "cli"
+tier = "free"
+argv = ["opencode", "run", "--format", "json", "{prompt}"]
+output_format = "stream-json"
+reset = "utc-midnight"
+caps_known = false
+[agents.capabilities]
+plan = 0.7
+review = 0.75
+build = 0.8
+inspect = 0.75
+judge = 0.7
+research = 0.6
+[[agents.windows]]
+name = "day"
+seconds = 86400
+
+# ---- Aider (talks to whatever model you point it at) -------------------------
+[[agents]]
+id = "aider"
+provider = "aider"
+kind = "cli"
+tier = "free"
+argv = ["aider", "--yes-always", "--no-git", "--message", "{prompt}"]
+read_only_argv = ["--dry-run"]
+output_format = "text"
+reset = "utc-midnight"
+caps_known = false
+[agents.capabilities]
+plan = 0.6
+review = 0.6
+build = 0.85
+inspect = 0.6
+judge = 0.5
+research = 0.4
+[[agents.windows]]
+name = "day"
+seconds = 86400
+
+# ---- Goose (Block) ---------------------------------------------------------
+[[agents]]
+id = "goose"
+provider = "block"
+kind = "cli"
+tier = "free"
+argv = ["goose", "run", "--text", "{prompt}"]
+output_format = "text"
+reset = "utc-midnight"
+caps_known = false
+[agents.capabilities]
+plan = 0.65
+review = 0.65
+build = 0.8
+inspect = 0.65
+judge = 0.6
+research = 0.6
+[[agents.windows]]
+name = "day"
+seconds = 86400
+
+# ---- Crush (Charm) -----------------------------------------------------------
+[[agents]]
+id = "crush"
+provider = "charm"
+kind = "cli"
+tier = "free"
+argv = ["crush", "run", "--quiet", "{prompt}"]
+output_format = "text"
+reset = "utc-midnight"
+caps_known = false
+[agents.capabilities]
+plan = 0.6
+review = 0.6
+build = 0.75
+inspect = 0.6
+judge = 0.5
+research = 0.5
+[[agents.windows]]
+name = "day"
+seconds = 86400
+
+# ---- Kilo Code CLI -----------------------------------------------------------
+[[agents]]
+id = "kilo-code"
+provider = "kilo"
+kind = "cli"
+tier = "free"
+argv = ["kilocode", "--auto", "--json", "{prompt}"]
+output_format = "stream-json"
+reset = "utc-midnight"
+caps_known = false
+[agents.capabilities]
+plan = 0.6
+review = 0.6
+build = 0.75
+inspect = 0.6
+judge = 0.5
+research = 0.5
+[[agents.windows]]
+name = "day"
+seconds = 86400
+
+# ---- Cline CLI ---------------------------------------------------------------
+[[agents]]
+id = "cline"
+provider = "cline"
+kind = "cli"
+tier = "free"
+argv = ["cline", "-y", "-o", "json", "{prompt}"]
+output_format = "json"
+reset = "utc-midnight"
+caps_known = false
+[agents.capabilities]
+plan = 0.6
+review = 0.6
+build = 0.75
+inspect = 0.6
+judge = 0.5
+research = 0.5
+[[agents.windows]]
+name = "day"
+seconds = 86400
+
+# ---- FreeLLMAPI router as a cheap HTTP tier (34 providers, 635 free endpoints)
+[[agents]]
+id = "freellmapi"
+provider = "freellmapi"
+kind = "http"
+tier = "free"
+endpoint = "http://localhost:3001/v1"
+api_key_env = "FREELLMAPI_KEY"
+model = "auto:smart"
+reset = "utc-midnight"
+caps_known = false
+trust = "independent"
+[agents.capabilities]
+plan = 0.6
+review = 0.7
+build = 0.3
+inspect = 0.6
+judge = 0.75
+research = 0.7
+[[agents.windows]]
+name = "minute"
+seconds = 60
+requests = 120
+[[agents.windows]]
+name = "day"
+seconds = 86400
+
+# ---- Local Ollama (free, unlimited, slow) ------------------------------------
+[[agents]]
+id = "ollama"
+provider = "local"
+kind = "http"
+tier = "free"
+endpoint = "http://localhost:11434/v1"
+model = "qwen3:14b"
+reset = "rolling"
+caps_known = true
+[agents.capabilities]
+plan = 0.4
+review = 0.5
+build = 0.2
+inspect = 0.4
+judge = 0.6
+research = 0.3
+
+# ---- Profiles (optional) -----------------------------------------------------
+# `--allocation profile:<name>` takes the first eligible agent in the declared
+# order and skips the bandit. Unknown names or agent ids are catalog errors.
+# [profiles]
+# coding = ["codex", "claude-code", "gemini-cli"]
+# cheap = ["gemini-cli", "qwen-code", "freellmapi"]

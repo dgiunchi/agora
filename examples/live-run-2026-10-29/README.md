@@ -12,10 +12,10 @@ A real collaborative loop on a throwaway fixture: a one-function repo whose five
 
 Command:
 
-`	ext
+```text
 agora run "Implement slugify(text) in slugger.py so that 'python -m unittest -q' passes ..." \
   --strategy collaborative --builder claude-code --proof-cmd "python -m unittest -q" --rounds 3 --seed 1
-`
+```
 
 Files here: the log section for this run, the plan Claude wrote, the implementation it built, the test contract, and both Codex verdicts with token usage. Paths are redacted.
 

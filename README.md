@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/hero.svg" alt="Agora: where free agents argue until the code is right" width="100%">
+<img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/hero.svg" alt="Agora: where free agents argue until the code is right" width="100%">
 
 ### Where free agents argue until the code is right.
 
@@ -36,7 +36,7 @@ N coding agents. One bounded loop. Zero API bills.
 
 ## Why this exists
 
-**Free tiers are toys on their own.** Every vendor now ships a coding agent with a free or subscription quota: a few hundred requests per five hours here, a thousand per day there. [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) showed that stacking the free *model* tiers of 34 providers adds up to real capacity, if a router tracks every cap and fails over the moment one is hit.
+**Free tiers are toys on their own.** Every vendor now ships a coding agent with a free or subscription quota: a few hundred requests per five hours here, a thousand per day there. [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) showed that stacking the free *model* tiers of dozens of providers (34 at the time of writing, per its README) adds up to real capacity, if a router tracks every cap and fails over the moment one is hit.
 
 **Single-agent loops have blind spots.** A model reviewing its own plan tends to approve it. [Claudex Loop](https://github.com/chaseai-yt/claudex-loop) showed that handing the plan to a *different* provider for review, and the code to a fresh session of yet another provider for inspection, catches what one model misses. But it runs on exactly two providers and stops dead when one runs out of quota.
 
@@ -46,7 +46,7 @@ The deliverable does not have to be code. Anything that ends up as files and can
 
 ## What you get in 20 seconds
 
-<img src="assets/loop.svg" alt="The hybrid loop with the quota allocator beside it" width="100%">
+<img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/loop.svg" alt="The hybrid loop with the quota allocator beside it" width="100%">
 
 ```text
 $ agora run "add CSV import with validation" --strategy hybrid --allocation auto:cheap --proof-cmd "pytest -q"
@@ -67,7 +67,7 @@ $ agora run "add CSV import with validation" --strategy hybrid --allocation auto
 - [2026-10-29T14:21:17Z] SUMMARY status=completed rounds=3 inspections=1 fallbacks=1 open_findings=1
 ```
 
-Every line above is appended to `AGORA-LOG.md` in the target repository. The plan lives in `PLAN.md`. Per-turn diagnostics (prompt, exact argv, stdout, stderr, result) go to a directory *outside* the checkout.
+The excerpt is abridged and illustrative (the Gemini and Qwen lines have not run live; the recorded logs under [`examples/`](examples/) carry every field). Every line of a real run is appended to `AGORA-LOG.md` in the target repository. The plan lives in `PLAN.md`. Per-turn diagnostics (prompt, exact argv, stdout, stderr, result) go to a directory *outside* the checkout.
 
 ## Does it actually work?
 
@@ -85,7 +85,9 @@ Yes, on two levels.
 
 Codex executed the tests against the proposed algorithm in memory during review, without write access, and verified the imports were standard library only. The unedited log, plan, built code and both verdicts with token usage are in [`examples/live-run-2026-10-29/`](examples/live-run-2026-10-29/). The first attempt that day failed because Codex's default model is rejected on ChatGPT accounts: the loop logged a fallback to Claude for planning, then refused to let Claude review its own plan and stopped with the reason. That is the designed behaviour, and it is recorded too. Details in [`VALIDATION.md`](VALIDATION.md). Later the same day the three bundled [use cases](#three-use-cases-end-to-end) ran live as well, and two of them found real bugs in Agora: an inspector that could end up checking code its own provider had written after a timed-out build, and a rate-limit detector that matched Agora's own log line when a reviewer echoed it. Both are fixed, tested, and left in the record.
 
-**Automatically, without spending quota.** 92 tests run on fake agent processes and disposable git repositories on every push, across Ubuntu, Windows and macOS. They cover the ledger, the allocator's hard filters across 1,000 randomised draws, the verdict schema, timeouts and process-tree kills, SHA-bound approvals, all three strategies, explicit fallback, and three end-to-end loops with a real proof command. See [Tests](#tests).
+**Automatically, without spending quota.** 118 tests run on fake agent processes and disposable git repositories on every push, across Ubuntu, Windows and macOS. They cover the ledger, the allocator's hard filters across 1,000 randomised draws, the verdict schema, timeouts and process-tree kills, SHA-bound approvals, all three strategies, explicit fallback, and three end-to-end loops with a real proof command. See [Tests](#tests).
+
+**And it was reviewed before it was announced.** Two independent adversarial review passes over the code and the docs, run before the first release, returned 27 code findings and 29 documentation findings. Five were release-blocking: on Windows a quoted proof command could pass vacuously, "read-only" roles were a request to the CLI rather than a verified fact, a planner could be chosen to review its own revision, npm `.cmd` shims would have put the prompt through `cmd.exe`, and the example catalog was missing from the package. Every one is fixed and pinned by `tests/test_hardening.py`; the full list and what was done about each item is in [`VALIDATION.md`](VALIDATION.md#pre-release-review-2026-10-30).
 
 ## Supported agents
 
@@ -94,28 +96,28 @@ Any CLI with a headless mode, plus any OpenAI-compatible HTTP endpoint. The exam
 <div align="center">
 <table>
 <tr>
-<td align="center" width="140"><img src="assets/agents/claude-code.png" width="44" alt="Claude Code"><br/><b>Claude Code</b><br/><sub>subscription</sub></td>
-<td align="center" width="140"><img src="assets/agents/codex.png" width="44" alt="Codex CLI"><br/><b>Codex CLI</b><br/><sub>subscription</sub></td>
-<td align="center" width="140"><img src="assets/agents/gemini-cli.png" width="44" alt="Gemini CLI"><br/><b>Gemini CLI</b><br/><sub>free</sub></td>
-<td align="center" width="140"><img src="assets/agents/qwen-code.png" width="44" alt="Qwen Code"><br/><b>Qwen Code</b><br/><sub>free</sub></td>
-<td align="center" width="140"><img src="assets/agents/opencode.png" width="44" alt="OpenCode"><br/><b>OpenCode</b><br/><sub>free</sub></td>
+<td align="center" width="140"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/agents/claude-code.png" width="44" alt="Claude Code"><br/><b>Claude Code</b><br/><sub>subscription</sub></td>
+<td align="center" width="140"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/agents/codex.png" width="44" alt="Codex CLI"><br/><b>Codex CLI</b><br/><sub>subscription</sub></td>
+<td align="center" width="140"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/agents/gemini-cli.png" width="44" alt="Gemini CLI"><br/><b>Gemini CLI</b><br/><sub>free</sub></td>
+<td align="center" width="140"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/agents/qwen-code.png" width="44" alt="Qwen Code"><br/><b>Qwen Code</b><br/><sub>free</sub></td>
+<td align="center" width="140"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/agents/opencode.png" width="44" alt="OpenCode"><br/><b>OpenCode</b><br/><sub>free</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="assets/agents/aider.png" width="44" alt="Aider"><br/><b>Aider</b><br/><sub>free</sub></td>
-<td align="center"><img src="assets/agents/goose.png" width="44" alt="Goose"><br/><b>Goose</b><br/><sub>free</sub></td>
-<td align="center"><img src="assets/agents/crush.png" width="44" alt="Crush"><br/><b>Crush</b><br/><sub>free</sub></td>
-<td align="center"><img src="assets/agents/kilo-code.png" width="44" alt="Kilo Code"><br/><b>Kilo Code</b><br/><sub>free</sub></td>
-<td align="center"><img src="assets/agents/cline.png" width="44" alt="Cline"><br/><b>Cline CLI</b><br/><sub>free</sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/agents/aider.png" width="44" alt="Aider"><br/><b>Aider</b><br/><sub>free</sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/agents/goose.png" width="44" alt="Goose"><br/><b>Goose</b><br/><sub>free</sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/agents/crush.png" width="44" alt="Crush"><br/><b>Crush</b><br/><sub>free</sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/agents/kilo-code.png" width="44" alt="Kilo Code"><br/><b>Kilo Code</b><br/><sub>free</sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/agents/cline.png" width="44" alt="Cline"><br/><b>Cline CLI</b><br/><sub>free</sub></td>
 </tr>
 </table>
 
-<i>plus <b>FreeLLMAPI</b> (34 providers, 635 free endpoints, one URL) and a local <b>Ollama</b> as HTTP tiers</i>
+<i>plus <b>FreeLLMAPI</b> (hundreds of free endpoints behind one URL: 34 providers, 635 endpoints per its README in October 2026) and a local <b>Ollama</b> as HTTP tiers</i>
 
 </div>
 
 | Agent | Kind | Status | Notes |
 |---|---|---|---|
-| Claude Code, Codex CLI | cli | **tested live**, four completed loops with each tool in every role (see [use cases](#three-use-cases-end-to-end) and `VALIDATION.md`) | read-only roles get `exec -s read-only` / disallowed edit tools, builders `exec -s workspace-write` / `acceptEdits`, as in Claudex Loop |
+| Claude Code, Codex CLI | cli | **tested live**, four completed loops with each tool in the plan, review, build and inspect roles; the LLM judge has not run live yet (see [use cases](#three-use-cases-end-to-end) and `VALIDATION.md`) | read-only roles get `exec -s read-only` / disallowed edit tools, builders `exec -s workspace-write` / `acceptEdits`, as in Claudex Loop |
 | Gemini CLI, Qwen Code, OpenCode, Aider, Goose, Crush, Kilo Code, Cline | cli | declared | headless argv from each tool's docs; send a PR with a `VALIDATION.md` entry once you have run one |
 | FreeLLMAPI, Ollama, vLLM, LM Studio | http | **tested** (fake server in CI) | any `/v1/chat/completions` endpoint |
 
@@ -124,9 +126,9 @@ Adding an agent is one TOML table. See [`agents.example.toml`](agents.example.to
 ## Quick start
 
 ```bash
-pipx install git+https://github.com/dgiunchi/agora        # or: pip install .
-cp agents.example.toml agents.toml                                 # keep the agents you actually have
-agora agents doctor                                              # installed? authenticated? version?
+pipx install git+https://github.com/dgiunchi/agora               # PyPI: `pipx install agora-loop` once v0.1.0 is published
+agora agents init                                                # writes agents.toml; keep the agents you actually have
+agora agents doctor                                              # on PATH? which version? what exactly would run?
 agora quota                                                      # what has each agent used, what is left
 agora run "add CSV import" --strategy hybrid --dry-run           # who fills which role, spends nothing
 agora run "add CSV import" --strategy hybrid --proof-cmd "pytest -q"  # the real thing
@@ -136,13 +138,14 @@ Requirements: Python 3.11+, git, and at least two agents from different provider
 
 ## Three use cases, end to end
 
-<img src="assets/use-cases.svg" alt="Three bundled use cases: feature review, red-teaming a parser, writing a decision memo" width="100%">
+<img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/use-cases.svg" alt="Three bundled use cases: feature review, red-teaming a parser, writing a decision memo" width="100%">
 
 Each use case is a tiny fixture under [`examples/use-cases/`](examples/use-cases/): a stub or a checker, a proof that fails until the task is done, and a `usecase.json` holding the task text, the flags and the proof command. One script copies the fixture into a temporary git repository and runs the loop there, so your own code is never touched:
 
 ```bash
-cp agents.example.toml agents.toml                 # keep two agents from different providers
-agora agents doctor                                # installed? authenticated?
+git clone https://github.com/dgiunchi/agora && cd agora
+agora agents init                                  # keep two agents from different providers
+agora agents doctor                                # on PATH? which version?
 python examples/use-cases/run.py feature-review --catalog agents.toml --dry-run   # who does what, spends nothing
 python examples/use-cases/run.py feature-review --catalog agents.toml             # 1. collaborative
 python examples/use-cases/run.py red-team       --catalog agents.toml             # 2. adversarial
@@ -164,7 +167,7 @@ The bundled fixture is `slugify()` with five failing tests. Live, first run:
 | Role | Agent | Wall time | Result |
 |---|---|---|---|
 | plan | Claude Code | 309 s | `PLAN.md` with acceptance criteria and a verification table |
-| review | Codex, read-only | 116 s | **APPROVED**, 1 low: ran the proposed function against all five tests in memory |
+| review | Codex, read-only | 116 s | **APPROVED**, 1 low (the plan's expected `git status` output omitted untracked files); ran the proposed function against all five tests in memory |
 | build | Claude Code | 600 s | **timed out**, process tree killed |
 | fallback | → Codex, workspace-write | 59 s | found `slugger.py` already written, verified it, changed nothing |
 | proof | `python -m unittest -q` | 1 s | Ran 5 tests, OK |
@@ -180,17 +183,17 @@ That run completed, and it also exposed a gap. The killed Claude turn had alread
 agora run "harden parse_size against malformed input" --strategy adversarial --proof-cmd "pytest -q"
 ```
 
-The bundled fixture is `parse_size()` with nine tests, fifteen of them reject-cases. Live:
+The bundled fixture is `parse_size()` with eight tests, three of which drive fifteen reject-cases. Live:
 
 | Role | Agent | Wall time | Result |
 |---|---|---|---|
 | plan | Codex | 90 s | `PLAN.md` with an explicit ASCII grammar and exact integer arithmetic |
 | red team | Claude Code, read-only | 354 s | **APPROVED**, 4 low: `re.IGNORECASE` would case-fold Unicode, non-ASCII digits absent from the rejection list, Python's int digit limit, leading zeros unspecified |
-| build | Codex, workspace-write | 139 s | implemented the plan; 8 test methods, 30 assertions |
+| build | Codex, workspace-write | 139 s | implemented the plan; 8 test methods, 29 assertions |
 | proof | `python -m unittest -q` | 1 s | OK |
 | attack | Claude Code, fresh session | 576 s | **APPROVED**, 4 low: `str.strip()` accepts Unicode whitespace, no magnitude cap, unit table rebuilt per call, `__pycache__` untracked |
 
-Zero fallbacks, eight low findings left open for a human, none material. Because no finding was material the judge was never consulted; with a material finding and only two providers the log shows `JUDGE by=llm skipped=true` and the planner must answer it in a revision. Add a third provider and `--judge both` arbitrates instead.
+Zero fallbacks, eight low findings left open for a human, none material. Because no finding was material the judge was never consulted; with a material finding and only two providers the log shows `JUDGE by=llm round=1 skipped=true` and the planner must answer it in a revision. Add a third provider and `--judge both` arbitrates instead.
 
 ### 3. Write a decision memo, not code
 
@@ -220,7 +223,7 @@ Three rounds, zero fallbacks, four low findings left open. The memo and every ve
 
 ## Strategies
 
-<img src="assets/strategies.svg" alt="Collaborative, adversarial and hybrid strategies" width="100%">
+<img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/strategies.svg" alt="Collaborative, adversarial and hybrid strategies" width="100%">
 
 | Strategy | Shape | When |
 |---|---|---|
@@ -228,19 +231,19 @@ Three rounds, zero fallbacks, four low findings left open. The memo and every ve
 | `adversarial` | plan → red team + judge → build → red-team inspect | parsers, security, anything with nasty edge cases |
 | `hybrid` (default) | plan → peer review → red team + judge → build → inspect | anything you would ship |
 
-Tunables: `--rounds` (plan-review cap, default 5), `--quorum` (independent approvals needed), `--judge llm|proof-cmd|both` (proof commands win on conflict), `--max-fix-rounds`, `--max-inspection-rounds`, `--builder <id>`, `--no-fallback`.
+Tunables: `--rounds` (plan-review cap, default 5), `--quorum` (independent approvals needed), `--judge llm|proof-cmd|both` (a failing proof overrides the LLM judge; `--judge proof-cmd` alone clears every finding on a pass), `--max-fix-rounds`, `--max-inspection-rounds`, `--builder <id>`, `--no-fallback`.
 
-The LLM judge must be independent of both the planner and the red team, so it needs a third provider. With only two providers the default `--judge both` skips the judge, logs `JUDGE by=llm skipped=true`, and sends every red-team finding back to the planner; `--dry-run` tells you in advance. `--judge llm` fails loudly instead.
+The LLM judge must be independent of both the planner and the red team, so it needs a third provider. With only two providers the default `--judge both` skips the judge, logs `JUDGE by=llm round=N skipped=true`, and sends every red-team finding back to the planner; `--dry-run` tells you in advance. `--judge llm` fails loudly instead.
 
 ## Allocation
 
-<img src="assets/allocation.svg" alt="How one role is allocated: catalog and ledger, hard filters, Thompson bandit" width="100%">
+<img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/allocation.svg" alt="How one role is allocated: catalog and ledger, hard filters, Thompson bandit" width="100%">
 
 The allocator never spends quota and never bends a hard rule:
 
 1. **Hard filters**: capability for the role above threshold, not in cooldown, headroom above the reserve, and independence (a reviewer cannot share a provider with the planner; an inspector cannot share one with the builder).
-2. **Thompson-sampling bandit** over reliability (observed successes and failures), speed (observed latency), capability (catalog prior) and headroom (the ledger's min over every RPM / RPD / TPM / TPD window). `auto:smart` weights capability, `auto:fast` weights speed, `auto:cheap` weights headroom and free tiers. `profile:<name>` walks a declared order.
-3. **Explicit fallback**: a 429, a timeout or a crash mid-turn moves to the next eligible agent *only* for roles where you allow it, and the log records `fallback_from`, `fallback_to` and the reason. Claudex Loop's "no silent fallback" rule stays intact; FreeLLMAPI's fail-over becomes a visible event.
+2. **Thompson-sampling bandit** over reliability (observed successes and failures), speed (observed latency), capability (catalog prior) and headroom (the ledger's min over every RPM / RPD / TPM / TPD window). `auto:smart` weights capability, `auto:fast` weights speed, `auto:cheap` weights headroom and free tiers. `profile:<name>` walks the order declared in a `[profiles]` table of the catalog (`agora agents init` shows the syntax).
+3. **Explicit fallback**: a 429, a timeout or a crash mid-turn moves to the next eligible agent unless you pass `--no-fallback`, and the log records `fallback_from`, `fallback_to` and the reason. Claudex Loop's "no silent fallback" rule stays intact; FreeLLMAPI's fail-over becomes a visible event.
 
 The ledger is SQLite. Unknown caps start optimistic and are learned from the first rate limit; declared caps always win. Windows reset at UTC midnight or roll, per agent.
 
@@ -248,7 +251,11 @@ The ledger is SQLite. Unknown caps start optimistic and are learned from the fir
 
 - An approval is bound to the plan path **and** its SHA256. Change one byte and the loop refuses to build.
 - An inspection records the pre-build commit and a fingerprint of the working tree including untracked files. Later edits need another inspection.
-- Reviewers and inspectors run read-only. Builders get bounded write permission.
+- Reviewers and inspectors get the CLI's read-only flags when it has them (Claude Code, Codex, Gemini CLI and Aider in the example catalog); builders get bounded write permission. Flags are a request, so every turn is also bracketed by a working-tree fingerprint: a read-only turn that changes the tree **fails**, is logged with `tree_changed=true`, and that agent counts as an author who may never inspect. `--dry-run` warns about catalog entries that have no read-only flags.
+- The approved plan is re-checked after every build and fix turn and before every inspection. A builder that rewrites `PLAN.md` ends the run with `PLAN_TAMPERED`.
+- Everyone who wrote or revised the plan is excluded from reviewing it, and quorum peers come from distinct providers. In the hybrid strategy a plan the red team forced to be revised goes back to the peers once.
+- On Windows, npm's `.cmd` shims are never launched through `cmd.exe`, which would re-parse the prompt as a command line; Agora resolves them to `node <entry.js>` or refuses to run them.
+- Agent output never forges a log line: control characters are stripped from every logged value.
 - `BLOCKED`, malformed output, duplicate finding ids, `APPROVED` with high or medium findings, an exhausted round budget, or a rate-limited reviewer with fallback disabled are all surfaced. None of them is ever converted into approval.
 - Zero findings is a valid outcome. A pile of findings is not a quality score. A quorum is evidence, not truth.
 
@@ -266,10 +273,11 @@ python -m unittest discover -s tests -t . -v
 | ledger | windows roll, UTC-midnight and rolling resets, cooldown backoff and cap, caps learned from a 429, headroom math, persistence |
 | allocator | hard filters hold across 1,000 randomised draws, `auto:cheap` prefers free tiers, seeded bandit is deterministic, dry-run spends nothing, independence via role references |
 | review | schema validation: duplicate ids, bad severity, APPROVED with material findings, missing coverage, JSON wrapped in prose or in `claude -p` output |
-| runner | five artifact files, stderr preserved, timeout kills the process tree, rate-limit detection (never on a clean exit, never on `rate_limited=` echoed from a log), Windows Node launch path, HTTP agents including 429 |
+| runner | five artifact files, stderr preserved, timeout kills the process tree, rate-limit detection (never on a clean exit, never on a killed turn, never on `rate_limited=` echoed from a log or a `line 429` in a traceback), Windows Node launch path, HTTP agents including 429 |
 | approval | one byte invalidates an approval, untracked files change the inspection fingerprint |
 | strategies | all three reach a terminal state inside the round cap; BLOCKED, malformed, duplicate ids and APPROVED-with-material are rejected; quorum; judge rules; tampered plan refused; fix rounds |
-| fallback | logged with `fallback_from`, `fallback_to`, `reason`; disabled per role fails loudly; independence survives fallback; budget |
+| fallback | logged with `fallback_from`, `fallback_to`, `reason`; `--no-fallback` fails loudly; independence survives fallback; budget |
+| hardening | Windows proof-command quoting; a read-only turn that changes the tree fails and becomes an author; a builder rewriting the approved plan is refused; the reviser never reviews its own revision; quorum peers from distinct providers; hybrid re-reviews a red-team revision; `[profiles]` validated and unknown profiles refused; agents without an executable are skipped; npm shims resolved and unknown `.cmd` files refused; a killed turn is never rate-limited by keyword; learned caps exclude the rejected request; token usage reaches the ledger; agent text cannot forge a log line; a missing proof command is logged and reported; `agents init`; mistakes exit 2 without a traceback |
 | two providers | judge skipped and logged with `--judge both`, loop still converges; `--judge llm` fails loudly; dry-run drops the judge with a note |
 | end to end | three fake agents, a toy repo, a real proof command, all three strategies, log and per-agent quota asserted |
 

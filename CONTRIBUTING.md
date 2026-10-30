@@ -8,7 +8,7 @@ Thanks for helping. The bar is the same for human and AI-assisted contributions:
 git clone https://github.com/dgiunchi/agora
 cd agora
 python scripts/validate.py agents.example.toml
-python -m unittest discover -s tests -t . -v
+python -m unittest discover -s tests -t . -v   # about a minute on CI; longer on a laptop with many hooks
 pip install -e .
 agora --version
 ```

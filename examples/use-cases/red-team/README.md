@@ -1,6 +1,6 @@
 # Use case 2: red-team a parser before it ships
 
-Strategy `adversarial`. Fixture: `sizes.py` with a `parse_size()` stub and nine tests in `test_sizes.py`, fifteen of them reject-cases. Proof: `python -m unittest -q`.
+Strategy `adversarial`. Fixture: `sizes.py` with a `parse_size()` stub and eight tests in `test_sizes.py`, three of which drive fifteen reject-cases. Proof: `python -m unittest -q`.
 
 ```bash
 python examples/use-cases/run.py red-team --catalog agents.toml

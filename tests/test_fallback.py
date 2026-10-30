@@ -97,7 +97,8 @@ class FallbackTests(unittest.TestCase):
 
     def test_timeout_also_falls_back(self):
         script = {"*": {"plan": [{"sleep": 20, "json": {"plan": "late"}}, {"json": {"plan": "# ok"}}]}}
-        coord, ledger = make_coordinator(self.tmp, "collaborative", script, agents=TWO, timeout=1.0)
+        # the timeout applies to every turn; 8 s leaves slow CI runners room for the other turns
+        coord, ledger = make_coordinator(self.tmp, "collaborative", script, agents=TWO, timeout=8.0)
         out = coord.run()
         self.assertEqual(out.status, "completed", out.reason)
         self.assertEqual(out.fallbacks[0].reason, "timeout")

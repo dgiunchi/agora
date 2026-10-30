@@ -13,6 +13,7 @@ fingerprint. Nothing is ever converted into approval by accident.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -91,6 +92,7 @@ class LoopOutcome:
     events: list[dict] = field(default_factory=list)
     quota: list[dict] = field(default_factory=list)
     allocations: list[Allocation] = field(default_factory=list)
+    proof_skipped: bool = False      # no --proof-cmd: nothing mechanical checked the deliverable
 
     @property
     def ok(self) -> bool:
@@ -104,11 +106,13 @@ def role_requests_for(strategy: str, quorum: int = 1, builder: str | None = None
     reqs = [RoleRequest("plan")]
     if strategy in ("collaborative", "hybrid"):
         for _ in range(quorum):
-            reqs.append(RoleRequest("review", independent_of=("role:plan",)))
+            # peers are independent of the planner and of each other: a quorum of one provider is none
+            reqs.append(RoleRequest("review", independent_of=("role:plan", "role:review")))
     if strategy in ("adversarial", "hybrid"):
         reqs.append(RoleRequest("review", independent_of=("role:plan",)))
         if judge != "proof-cmd":
-            reqs.append(RoleRequest("judge", independent_of=("role:plan", "role:review")))
+            # the judge checks the red team (the latest reviewer) and the planner, not the peers
+            reqs.append(RoleRequest("judge", independent_of=("role:plan", "last:review")))
     reqs.append(RoleRequest("build"))
     reqs.append(RoleRequest("inspect", independent_of=("role:build",), fresh=True))
     return reqs
@@ -127,6 +131,7 @@ class Coordinator:
         self.outcome = LoopOutcome(status="failed")
         self._approval: Approval | None = None
         self._planner: str | None = None
+        self._plan_authors: list[str] = []    # everyone who wrote or revised the plan
         self._builder: str | None = None
         self._reviewers: list[str] = []
         self._pre_build_commit: str | None = None
@@ -147,12 +152,12 @@ class Coordinator:
         ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self._now()))
         event = {"ts": ts, "kind": kind, **fields}
         self.outcome.events.append(event)
-        body = " ".join(f"{k}={v if isinstance(v, str) else json.dumps(v)}" for k, v in fields.items())
+        # Agent text (errors, evidence) never gets to forge a log line: no control characters.
+        body = " ".join(f"{k}={_clean(v) if isinstance(v, str) else json.dumps(v)}" for k, v in fields.items())
         with self.log_path.open("a", encoding="utf-8") as fh:
             fh.write(f"- [{ts}] {kind} {body}\n")
 
     def _start_log(self) -> None:
-        self.config.repo.mkdir(parents=True, exist_ok=True)
         c = self.config
         header = (f"\n## Run {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(self._now()))} UTC\n\n"
                   f"task: {c.task}\nstrategy: {c.strategy}  allocation: {c.allocation}  "
@@ -177,20 +182,29 @@ class Coordinator:
             self.log("ALLOCATION", **_alloc_fields(alloc))
             self.outcome.allocations.append(alloc)
             spec = self.catalog[alloc.agent_id]
-            fp_before = None if read_only else inspection_fingerprint(self.config.repo)
+            # Every turn is bracketed by a working-tree fingerprint. A read-only role that
+            # changes the tree has failed, whatever its CLI flags promised; a failed write
+            # turn may still have changed files (a timeout kills the process, not its edits).
+            fp_before = inspection_fingerprint(self.config.repo)
             result = self._run_turn(spec, req.role, prompt, artifacts_root=self.config.artifacts_root,
                                     timeout=self.config.timeout, read_only=read_only,
                                     cwd=self.config.repo, env=self.config.env)
-            # Measured before anything else is logged into the checkout: a failed write turn may
-            # still have changed files (a timeout kills the process, not its edits).
-            tree_changed = fp_before is not None and inspection_fingerprint(self.config.repo) != fp_before
+            tree_changed = inspection_fingerprint(self.config.repo) != fp_before
+            if read_only and tree_changed and result.ok:
+                result.ok = False
+                result.error = "read-only turn changed the working tree"
             self.ledger.record(spec, req.role, duration=result.duration, ok=result.ok,
+                               tokens_in=result.tokens_in, tokens_out=result.tokens_out,
                                outcome="ok" if result.ok else (result.error or f"exit {result.exit_code}"),
                                observed_model=result.observed_model, rate_limited=result.rate_limited)
             self.log("TURN", role=req.role, agent=alloc.agent_id, ok=result.ok, exit_code=result.exit_code,
-                     rate_limited=result.rate_limited, timed_out=result.timed_out,
+                     rate_limited=result.rate_limited, timed_out=result.timed_out, read_only=read_only,
+                     tree_changed=tree_changed, tokens_in=result.tokens_in, tokens_out=result.tokens_out,
                      requested_model=spec.model or "cli-default",
                      observed_model=result.observed_model or "unknown", artifacts=result.artifact_dir)
+            if result.rate_limited:
+                self.log("LEARNED_CAP", agent=alloc.agent_id, caps=self.ledger.learned(alloc.agent_id),
+                         note="drop with: agora quota --forget " + alloc.agent_id)
             if result.ok:
                 return alloc, result
             reason = ("rate limited" if result.rate_limited else
@@ -223,6 +237,7 @@ class Coordinator:
         prompt = PLAN_PROMPT.format(task=self.config.task)
         alloc, result = self._turn(req, prompt, read_only=True)
         self._planner = alloc.agent_id
+        self._plan_authors.append(alloc.agent_id)
         self._write_plan(_plan_text(result))
         self.log("PLAN", agent=alloc.agent_id, plan=str(self.plan_path), plan_sha256=self.outcome.plan_sha256)
 
@@ -240,7 +255,8 @@ class Coordinator:
             chosen: list[str] = []
             n = self.config.quorum if mode == "collaborative" else 1
             for _ in range(n):
-                req = RoleRequest("review", independent_of=(self._planner or "",), exclude=tuple(chosen))
+                # independent of every plan author (the reviser too) and of the peers already chosen
+                req = RoleRequest("review", independent_of=(*self._plan_authors, *chosen), exclude=tuple(chosen))
                 tmpl = REVIEW_PROMPT if mode == "collaborative" else REDTEAM_PROMPT
                 prompt = tmpl.format(task=self.config.task, plan=plan_text, round=round_no)
                 alloc, result = self._turn(req, prompt, read_only=True)
@@ -285,6 +301,8 @@ class Coordinator:
             req = RoleRequest("plan", exclude=tuple(chosen))
             prompt = REVISE_PROMPT.format(task=self.config.task, plan=plan_text, findings=dispositions)
             alloc, result = self._turn(req, prompt, read_only=True)
+            if alloc.agent_id not in self._plan_authors:
+                self._plan_authors.append(alloc.agent_id)
             self._write_plan(_plan_text(result))
             plan_text = self.plan_path.read_text(encoding="utf-8")
             self.log("REVISION", round=round_no, agent=alloc.agent_id, plan_sha256=self.outcome.plan_sha256,
@@ -304,7 +322,7 @@ class Coordinator:
             if proof_ok and self.config.judge == "proof-cmd":
                 return []
         if self.config.judge in ("llm", "both"):
-            req = RoleRequest("judge", independent_of=(self._planner or "", red_id))
+            req = RoleRequest("judge", independent_of=(*self._plan_authors, red_id))
             eligible, rejected = self.allocator.eligible(req)
             if not eligible and self.config.judge == "both":
                 # No independent LLM judge (typically only two providers). Degrade
@@ -339,18 +357,40 @@ class Coordinator:
     def _run_proof(self) -> bool:
         cmd = self.config.proof_cmd
         if not cmd:
+            self.outcome.proof_skipped = True
+            self.log("PROOF", skipped=True, reason="no --proof-cmd; nothing mechanical checked the deliverable")
             return True
         try:
-            out = subprocess.run(cmd, cwd=str(self.config.repo), capture_output=True, text=True,
-                                 encoding="utf-8", errors="replace", timeout=self.config.timeout, check=False)
-        except (OSError, subprocess.TimeoutExpired) as exc:
+            proc = subprocess.Popen(cmd, cwd=str(self.config.repo), stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                    encoding="utf-8", errors="replace")
+        except OSError as exc:
             self.log("PROOF", cmd=cmd, passed=False, error=str(exc))
             self._last_proof_output = str(exc)
             return False
-        self.log("PROOF", cmd=cmd, passed=out.returncode == 0, exit_code=out.returncode,
-                 stdout_tail=out.stdout[-400:], stderr_tail=out.stderr[-400:])
-        self._last_proof_output = (out.stdout + "\n" + out.stderr)[-4000:]
-        return out.returncode == 0
+        try:
+            stdout, stderr = proc.communicate(timeout=self.config.timeout)
+        except subprocess.TimeoutExpired:
+            _runner._kill_tree(proc)
+            self.log("PROOF", cmd=cmd, passed=False, error=f"timeout after {self.config.timeout}s; process tree killed")
+            self._last_proof_output = "proof command timed out"
+            return False
+        except BaseException:
+            _runner._kill_tree(proc)
+            raise
+        self.log("PROOF", cmd=cmd, passed=proc.returncode == 0, exit_code=proc.returncode,
+                 stdout_tail=stdout[-400:], stderr_tail=stderr[-400:])
+        self._last_proof_output = (stdout + "\n" + stderr)[-4000:]
+        return proc.returncode == 0
+
+    def _assert_plan_intact(self, agent_id: str, stage: str) -> None:
+        """The approved plan is the contract: a builder may not rewrite it after approval."""
+        if check_approval(self.plan_path, self._approval):
+            return
+        self.log("PLAN_TAMPERED", stage=stage, agent=agent_id, plan_sha256=plan_sha256(self.plan_path),
+                 approved_sha256=self._approval.plan_sha256 if self._approval else None)
+        raise LoopFailure(f"{self.config.plan_file} changed after approval during the {stage} turn "
+                          f"by {agent_id}; refusing to continue")
 
     def _builder_request(self) -> RoleRequest:
         if self.config.builder:
@@ -366,6 +406,7 @@ class Coordinator:
         self._pre_build_commit = current_commit(self.config.repo)
         alloc, _ = self._turn(self._builder_request(), self._build_prompt(), read_only=False)
         self._builder = alloc.agent_id
+        self._assert_plan_intact(alloc.agent_id, "build")
         self.log("BUILD", agent=alloc.agent_id, pre_build_commit=self._pre_build_commit or "none",
                  plan_sha256=self._approval.plan_sha256 if self._approval else None)
         for fix in range(self.config.max_fix_rounds + 1):
@@ -378,6 +419,7 @@ class Coordinator:
             prompt = FIX_PROMPT.format(plan=self.plan_path.read_text(encoding="utf-8"),
                                        output=self._last_proof_output)
             alloc, _ = self._turn(req, prompt, read_only=False)
+            self._assert_plan_intact(alloc.agent_id, "fix")
             self.log("FIX", round=fix + 1, agent=alloc.agent_id)
 
     def _build_prompt(self) -> str:
@@ -386,6 +428,7 @@ class Coordinator:
 
     def _phase_inspect(self, mode: str) -> None:
         for round_no in range(1, self.config.max_inspection_rounds + 1):
+            self._assert_plan_intact(self._builder or "?", "build")
             self.outcome.inspections += 1
             fp = inspection_fingerprint(self.config.repo)
             authors = tuple(dict.fromkeys([self._builder or "", *self._tree_touchers]))
@@ -420,6 +463,7 @@ class Coordinator:
                                   min_capability=0.0)
             prompt = FIX_FINDINGS_PROMPT.format(findings=json.dumps(self.outcome.open_findings, indent=2))
             alloc2, _ = self._turn(fix_req, prompt, read_only=False)
+            self._assert_plan_intact(alloc2.agent_id, "fix")
             self.log("FIX", round=round_no, agent=alloc2.agent_id, after="inspection")
             if not self._run_proof():
                 raise LoopFailure("proof command failed after inspection fixes")
@@ -430,14 +474,23 @@ class Coordinator:
         third provider the judge role is dropped and a note explains why."""
         self.dry_run_notes = []
         try:
-            return self.allocator.plan(self._dry_run_requests(self.config.judge))
+            allocs = self.allocator.plan(self._dry_run_requests(self.config.judge))
         except AllocationError as exc:
             if self.config.judge != "both" or exc.role != "judge":
                 raise
             self.dry_run_notes.append(
                 f"judge: {exc}. The loop will log JUDGE skipped=true and send every red-team "
                 f"finding back to the planner; add an agent from a third provider for an LLM judge.")
-            return self.allocator.plan(self._dry_run_requests("proof-cmd"))
+            allocs = self.allocator.plan(self._dry_run_requests("proof-cmd"))
+        for a in allocs:
+            spec = self.catalog.get(a.agent_id)
+            if spec and spec.kind == "cli" and a.role != "build" and not spec.read_only_argv:
+                self.dry_run_notes.append(
+                    f"{a.agent_id}: no read_only_argv in the catalog; its {a.role} turn runs with the "
+                    f"CLI's default permissions and fails if it changes the working tree.")
+        if not self.config.proof_cmd:
+            self.dry_run_notes.append("no --proof-cmd: nothing mechanical will check the deliverable.")
+        return allocs
 
     def _dry_run_requests(self, judge: str) -> list[RoleRequest]:
         reqs = role_requests_for(self.config.strategy, self.config.quorum, self.config.builder, judge)
@@ -448,6 +501,8 @@ class Coordinator:
         return reqs
 
     def run(self) -> LoopOutcome:
+        if not self.config.repo.is_dir():
+            raise ValueError(f"repo does not exist: {self.config.repo}")
         self._start_log()
         try:
             self._phase_plan()
@@ -457,7 +512,14 @@ class Coordinator:
             elif s == "adversarial":
                 approved = self._phase_review("adversarial")
             else:
-                approved = self._phase_review("collaborative") and self._phase_review("adversarial")
+                approved = self._phase_review("collaborative")
+                peer_sha = self.outcome.plan_sha256
+                approved = approved and self._phase_review("adversarial")
+                if approved and self.outcome.plan_sha256 != peer_sha:
+                    # the red team forced a revision: the peers approved an older plan
+                    self.log("REREVIEW", reason="plan revised after peer approval; peers review it again",
+                             plan_sha256=self.outcome.plan_sha256)
+                    approved = self._phase_review("collaborative")
             if not approved:
                 return self._finish()
             self._phase_build()
@@ -481,6 +543,13 @@ class Coordinator:
                  fallbacks=len(self.outcome.fallbacks), open_findings=len(self.outcome.open_findings),
                  plan_sha256=self.outcome.plan_sha256)
         return self.outcome
+
+
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
+
+
+def _clean(text: str) -> str:
+    return _CONTROL.sub(" ", text)
 
 
 def _alloc_fields(a: Allocation) -> dict[str, Any]:

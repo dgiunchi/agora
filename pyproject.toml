@@ -1,21 +1,27 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agora"
+name = "agora-loop"
 version = "0.1.0"
 description = "A quota-aware system of agentic systems: N coding agents, one bounded loop, free tiers only."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Daniele Giunchi" }]
 keywords = ["agents", "llm", "claude-code", "codex", "multi-agent", "free-tier", "routing"]
 classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
   "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Operating System :: OS Independent",
-  "Topic :: Software Development :: Build Tools",
+  "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = []
 
@@ -24,6 +30,12 @@ agora = "agora.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/dgiunchi/agora"
+Repository = "https://github.com/dgiunchi/agora"
+Issues = "https://github.com/dgiunchi/agora/issues"
+Changelog = "https://github.com/dgiunchi/agora/releases"
 
 [tool.setuptools]
 packages = ["agora"]
+
+[tool.setuptools.package-data]
+agora = ["agents.example.toml"]

@@ -8,7 +8,9 @@ and the coordinator logs the event. Nothing here spends quota.
 from __future__ import annotations
 
 import random
+import shutil
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from .ledger import Ledger
 from .registry import AgentSpec
@@ -59,26 +61,49 @@ class Allocator:
     def __init__(self, catalog: dict[str, AgentSpec], ledger: Ledger, *, strategy: str = "auto:smart",
                  seed: int | None = None, reserve: float = 0.05,
                  weights: dict[str, float] | None = None,
-                 profiles: dict[str, list[str]] | None = None) -> None:
+                 profiles: dict[str, list[str]] | None = None,
+                 require_installed: bool = True) -> None:
         self.catalog = catalog
         self.ledger = ledger
         self.strategy = strategy
         self.reserve = reserve
         self.rng = random.Random(seed)
         self.profiles = profiles or {}
+        self.require_installed = require_installed
+        self._installed: dict[str, str | None] = {}
+        self.profile: str | None = None
+        if strategy.startswith("profile:"):
+            self.profile = strategy[len("profile:"):]
+            if self.profile not in self.profiles:
+                known = ", ".join(sorted(self.profiles)) or "none declared"
+                raise AllocationError(f"unknown profile {self.profile!r} (declared in [profiles]: {known})")
         if weights is not None:
             self.weights = weights
         elif strategy in STRATEGY_WEIGHTS:
             self.weights = STRATEGY_WEIGHTS[strategy]
-        elif strategy.startswith("profile:") or strategy in self.profiles:
+        elif self.profile is not None:
             self.weights = STRATEGY_WEIGHTS["auto:smart"]
         else:
             raise AllocationError(f"unknown allocation strategy {strategy!r}")
 
     # -- filters ----------------------------------------------------------
+    def missing_executable(self, spec: AgentSpec) -> str | None:
+        """The reason a CLI agent cannot run on this machine, or None. Cached per allocator."""
+        if spec.kind != "cli" or not spec.argv:
+            return None
+        if spec.id not in self._installed:
+            exe = spec.argv[0]
+            found = Path(exe).is_file() or shutil.which(exe) is not None
+            self._installed[spec.id] = None if found else f"executable not found: {exe}"
+        return self._installed[spec.id]
+
     def rejection(self, spec: AgentSpec, req: RoleRequest, independent_of: tuple[str, ...]) -> str | None:
         if spec.id in req.exclude:
             return "excluded"
+        if self.require_installed:
+            why = self.missing_executable(spec)
+            if why:
+                return why
         if spec.id in independent_of:
             return "same agent as the one it must check"
         if spec.trust == "independent":
@@ -109,9 +134,8 @@ class Allocator:
         return ok, rejected
 
     def _profile_pool(self) -> list[AgentSpec]:
-        name = self.strategy[len("profile:"):] if self.strategy.startswith("profile:") else self.strategy
-        if name in self.profiles:
-            return [self.catalog[a] for a in self.profiles[name] if a in self.catalog]
+        if self.profile is not None:
+            return [self.catalog[a] for a in self.profiles[self.profile] if a in self.catalog]
         return list(self.catalog.values())
 
     # -- scoring ----------------------------------------------------------
@@ -133,10 +157,10 @@ class Allocator:
         if not ok:
             detail = "; ".join(f"{k}: {v}" for k, v in rejected.items()) or "catalog is empty"
             raise AllocationError(f"no eligible agent for role {req.role!r}: {detail}", role=req.role)
-        if self._profile_pool() is not list(self.catalog.values()) and self.strategy not in STRATEGY_WEIGHTS:
+        if self.profile is not None:
             spec = ok[0]  # named profile: first eligible in declared order
             total, parts = self.score(spec, req)
-            reason = f"first eligible in profile {self.strategy}"
+            reason = f"first eligible in profile {self.profile}"
         else:
             scored = [(self.score(s, req), s) for s in ok]
             scored.sort(key=lambda x: x[0][0], reverse=True)
@@ -155,14 +179,22 @@ class Allocator:
         return self.choose(req2, independent_of)
 
     def plan(self, reqs: list[RoleRequest]) -> list[Allocation]:
-        """Dry-run allocation for a whole loop. `role:<name>` references resolve
-        to the agent allocated for that role earlier in the list."""
+        """Dry-run allocation for a whole loop. `role:<name>` resolves to every agent
+        allocated to that role earlier in the list, `last:<name>` to the latest one."""
         out: list[Allocation] = []
-        by_role: dict[str, str] = {}
+        by_role: dict[str, list[str]] = {}
         for req in reqs:
-            ind = tuple(by_role.get(x[5:], "") if x.startswith("role:") else x for x in req.independent_of)
-            ind = tuple(x for x in ind if x)
-            alloc = self.choose(req, ind)
+            ind: list[str] = []
+            for x in req.independent_of:
+                if x.startswith("role:"):
+                    ind += by_role.get(x[5:], [])
+                elif x.startswith("last:"):
+                    ind += by_role.get(x[5:], [])[-1:]
+                else:
+                    ind.append(x)
+            # `role:review` resolves to every reviewer so far, so quorum peers are distinct
+            # agents from distinct providers; the hybrid red team may still reuse a peer.
+            alloc = self.choose(req, tuple(ind))
             out.append(alloc)
-            by_role.setdefault(req.role, alloc.agent_id)
+            by_role.setdefault(req.role, []).append(alloc.agent_id)
         return out

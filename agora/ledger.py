@@ -84,6 +84,9 @@ class Ledger:
                observed_model: str | None = None, rate_limited: bool = False) -> None:
         model = spec.model or ""
         tokens = int(tokens_in) + int(tokens_out)
+        if rate_limited:
+            # Learn caps from the requests that succeeded, before counting the rejected one.
+            self.mark_rate_limited(spec, key=key)
         for w in spec.windows:
             start = self.window_start(spec, w)
             self.conn.execute(
@@ -97,9 +100,7 @@ class Ledger:
                tokens_out, duration, ok, outcome) VALUES(?,?,?,?,?,?,?,?,?,?)""",
             (self.now(), spec.id, role, spec.model, observed_model, int(tokens_in), int(tokens_out),
              float(duration), 1 if ok else 0, outcome))
-        if rate_limited:
-            self.mark_rate_limited(spec, key=key)
-        elif ok:
+        if ok and not rate_limited:
             self.clear_cooldown(spec.id)
 
     def mark_rate_limited(self, spec: AgentSpec, *, key: str = "default") -> float:
@@ -131,6 +132,12 @@ class Ledger:
                 "ON CONFLICT(agent, window) DO UPDATE SET requests=excluded.requests, tokens=excluded.tokens",
                 (spec.id, w.name, req_cap, tok_cap))
         return until
+
+    def learned(self, agent_id: str) -> dict[str, dict[str, int | None]]:
+        """Caps learned from rate limits, per window."""
+        rows = self.conn.execute("SELECT window, requests, tokens FROM learned_caps WHERE agent=?",
+                                 (agent_id,)).fetchall()
+        return {r["window"]: {"requests": r["requests"], "tokens": r["tokens"]} for r in rows}
 
     def clear_cooldown(self, agent_id: str) -> None:
         self.conn.execute("DELETE FROM cooldowns WHERE agent=?", (agent_id,))

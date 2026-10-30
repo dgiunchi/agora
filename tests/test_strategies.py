@@ -224,17 +224,22 @@ class StrategyTests(unittest.TestCase):
         for aid in coord.catalog:
             self.assertEqual(ledger.total_requests(aid), 0)
         self.assertFalse(coord.log_path.exists())
+        planner, peer1, peer2, red, judge, builder, inspector = allocs
+        self.assertNotIn(planner.provider, {peer1.provider, peer2.provider, red.provider, judge.provider})
+        self.assertNotEqual(peer1.provider, peer2.provider)
+        self.assertNotEqual(inspector.provider, builder.provider)
 
     def test_dry_run_with_two_providers_drops_judge_and_says_so(self):
         two = (("alpha", "anthropic", "free"), ("beta", "openai", "subscription"))
         coord, ledger = make_coordinator(self.tmp, "hybrid", agents=two, judge="both")
         allocs = coord.dry_run()
         self.assertEqual([a.role for a in allocs], ["plan", "review", "review", "build", "inspect"])
-        self.assertEqual(len(coord.dry_run_notes), 1)
-        self.assertIn("third provider", coord.dry_run_notes[0])
+        judge_notes = [n for n in coord.dry_run_notes if n.startswith("judge:")]
+        self.assertEqual(len(judge_notes), 1)
+        self.assertIn("third provider", judge_notes[0])
         coord2, _ = make_coordinator(self.tmp, "adversarial", agents=two, judge="proof-cmd")
         self.assertEqual([a.role for a in coord2.dry_run()], ["plan", "review", "build", "inspect"])
-        self.assertEqual(coord2.dry_run_notes, [])
+        self.assertEqual([n for n in coord2.dry_run_notes if n.startswith("judge:")], [])
         coord3, _ = make_coordinator(self.tmp, "adversarial", agents=two, judge="llm")
         with self.assertRaises(AllocationError) as ctx:
             coord3.dry_run()
