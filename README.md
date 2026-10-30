@@ -114,6 +114,18 @@ Any CLI with a headless mode, plus any OpenAI-compatible HTTP endpoint. The exam
 
 <i>plus <b>FreeLLMAPI</b> (hundreds of free endpoints behind one URL: 34 providers, 635 endpoints per its README in October 2026) and a local <b>Ollama</b> as HTTP tiers</i>
 
+<br/><br/>
+<b>Decision models</b> <sub>typed answers that steer the loop and never approve anything</sub>
+<table>
+<tr>
+<td align="center" width="140"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/decisions/beatapi-jev.png" width="44" alt="BeatAPI JEV"><br/><b>BeatAPI JEV</b><br/><sub>free, 1 req/min</sub></td>
+<td align="center" width="140"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/decisions/apinex.png" width="44" alt="APINex"><br/><b>APINex</b><br/><sub>free, 5 req/min</sub></td>
+<td align="center" width="140"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/decisions/cloudflare.png" width="44" alt="Cloudflare Workers AI"><br/><b>Cloudflare Clef</b><br/><sub>free daily allowance</sub></td>
+<td align="center" width="140"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/decisions/openrouter.png" width="44" alt="OpenRouter"><br/><b>OpenRouter Mercury</b><br/><sub>your credit</sub></td>
+<td align="center" width="140"><img src="https://raw.githubusercontent.com/dgiunchi/agora/main/assets/decisions/freellmapi.png" width="44" alt="FreeLLMAPI"><br/><b>FreeLLMAPI gateway</b><br/><sub>fails over for you</sub></td>
+</tr>
+</table>
+
 </div>
 
 | Agent | Kind | Status | Notes |
@@ -262,7 +274,33 @@ Agora asks them only where it would otherwise choose by rule, and a decision is 
 | `--judge decision` | does this red-team finding still stand; a decision model is a third provider, so two coding agents are enough for an arbitrated red team | the finding stands and goes back to the planner |
 | nothing, always | is each material finding specific and how severe is it, as evidence in the log | nothing changes |
 
-Every answer is logged with the model that answered, the value and the confidence (`DECISION decision=judge model=jev-1.14-free answers={"status": {"value": "addressed", "confidence": 0.81}}`), every fallback too (`DECISION decision=strategy fallback=no decision model ready (beatapi-jev: BEATAPI_API_KEY not set)`), `--dry-run` says which model would answer, and `--no-decisions` switches it all off. `agora decide --state "harden parse_size" --choice strategy=collaborative,adversarial,hybrid` asks one by hand. The integration is verified against a fake decision server in the test suite; a live check against a free JEV model needs a key and is recorded in `VALIDATION.md` once run.
+Every answer is logged with the model that answered, the value and the confidence (`DECISION decision=judge model=jev-1.14-free answers={"status": {"value": "addressed", "confidence": 0.81}}`), every fallback too (`DECISION decision=strategy fallback=no decision model ready (beatapi-jev: BEATAPI_API_KEY not set)`), `--dry-run` says which model would answer, and `--no-decisions` switches it all off. The integration is verified against a fake decision server in the test suite; a live check against a free JEV model needs a key and is recorded in `VALIDATION.md` once run.
+
+### Using them
+
+All five are already in the catalog that `agora agents init` writes. Keep the ones you have a key for, delete the rest, and export the key in the shell that runs Agora. Agora reads keys from the environment only, never from a file, and never prints them.
+
+| Provider | Get a key | Export | Catalog entry | Free terms as recorded in October 2026 |
+|---|---|---|---|---|
+| **BeatAPI JEV** | free account at beatapi.io, create an API key | `BEATAPI_API_KEY` | `beatapi-jev` (`jev-1.14-free`; `jev-1.13-free` also answers) | temporary free offer, one successful request per minute per account before any top-up; no card |
+| **APINex** | account at apinex.bond, create an API key; a $0 wallet is valid on Free | `APINEX_API_KEY` | `apinex-decisions` (confirm the model id on apinex.bond/developers/models/decisions) | 10,000,000 units per day shared with chat, 5 requests per minute |
+| **Cloudflare Workers AI** | dash.cloudflare.com: an API token with Workers AI access; put your account id in the entry's endpoint | `CLOUDFLARE_API_TOKEN` | `cloudflare-clef` (`@cf/cloudflare/clef-flash`; `clef`, `nimble`, `tev1` exist too) | the Workers AI free daily allowance of any account |
+| **OpenRouter** | openrouter.ai, an API key | `OPENROUTER_API_KEY` | `openrouter-mercury` (`mercury-decide`) | rides on whatever credit the key has |
+| **FreeLLMAPI gateway** | your own FreeLLMAPI instance that exposes `/v1/decisions`, with its client key | `FREELLMAPI_API_KEY` | `freellmapi-decisions` (`auto`) | every decision model the instance holds a key for, with its own failover and cooldowns |
+
+Then, in order:
+
+```bash
+agora agents init                       # writes agents.toml with the five entries; delete the ones you will not use
+export BEATAPI_API_KEY=...              # Windows: set BEATAPI_API_KEY=...
+agora agents doctor                     # the decision rows must say key_env=set
+agora decide --state "harden parse_size against malformed input" \
+  --choice strategy=collaborative,adversarial,hybrid --noul risky   # one request; answers with model and confidence
+agora run "harden parse_size" --strategy auto --judge decision --proof-cmd "pytest -q" --dry-run   # who answers, who does what
+agora run "harden parse_size" --strategy auto --judge decision --proof-cmd "pytest -q"
+```
+
+What to expect in `AGORA-LOG.md`: a `DECISION decision=strategy` line with the model and the confidence, a `CHOICE decision=strategy value=... source=decision` line (or `source=default` with the reason), a `DECISION decision=triage` line per material finding, and with `--judge decision` a `DECISION decision=judge finding=R1` line per finding followed by `JUDGE by=decision unresolved=[...] cleared=[...]`. Tunables: `--decision-min-confidence` (default 0.5, below it the default applies), `--decision-timeout` (default 5 s; BeatAPI's free route can be slow), `--no-decisions`. Declared order is the order tried, so put the free model you trust first; a 429 puts that model in cooldown and the next one answers; identical questions are served from the 30-minute cache, so a retried turn never spends a one-per-minute quota twice. Decision models never fill a loop role and never approve: with `--judge decision` a finding is cleared only when the model answers `addressed` or `out_of_scope` above the confidence floor, and the model's provider must differ from the planner's and the red team's.
 
 ## What an approval means
 
