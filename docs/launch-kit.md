@@ -37,17 +37,17 @@ Body: see the Show HN text; add the live-run table from the README and the `asse
 
 ## Where to post, in order
 
-1. GitHub Discussions or issues of the two parent projects, as a thank-you with a link (they are credited in the README).
+1. Done 2026-10-30: Show and tell in FreeLLMAPI, https://github.com/tashfeenahmed/freellmapi/discussions/1776. Claudex Loop has no Discussions, and its issue tracker is not the place for an announcement.
 2. Show HN, on a weekday morning US time.
 3. r/ClaudeAI, r/ChatGPTCoding, r/LocalLLaMA, one at a time, a day apart.
-4. The awesome lists for Claude Code and for Codex (one PR each, following their format).
+4. The awesome lists, each on its own terms (see below): awesome-claude-code only through its web issue form and not before 2026-11-12; awesome-ai-agents through its Google form, since its pull-request queue is not being merged.
 5. X / LinkedIn thread with `assets/hero.svg` rendered to PNG.
 6. A short screen recording of `python examples/use-cases/run.py red-team` as the pinned asset.
 
-## Awesome-list entries (one PR each, keep their format)
+## Awesome-list entries
 
-- awesome-claude-code (hesreallyhim), under workflows / orchestration: `[Agora](https://github.com/dgiunchi/agora) - Runs Claude Code, Codex and other headless CLIs through a plan / review / build / inspect loop where a different provider always reviews, with a quota ledger and explicit fallback.`
-- awesome-ai-agents (e2b-dev), under open source / multi-agent: same line, lead with "multi-agent review loop over the free tiers you already have".
+- awesome-claude-code (hesreallyhim): no pull requests and no `gh` submissions; a human fills the issue form at https://github.com/hesreallyhim/awesome-claude-code/issues/new?template=recommend-resource.yml. A project must be 14 days old with commits after day one, or have 100 stars, so not before 2026-11-12. One-line description, no pitch, no emoji: `Runs Claude Code, Codex and other headless CLIs through a plan / review / build / inspect loop where a different provider always reviews, with a quota ledger and explicit fallback.`
+- awesome-ai-agents (e2b-dev): the README says pull request or form, but contributor pull requests are not being merged (checked 2026-10-30). Use the form at https://forms.gle/UXQFCogLYrPFvfoUA. Category `Coding, Multi-agent`; description: `Multi-agent review loop over the free tiers you already have: one coding agent plans, a different provider reviews, a fresh session inspects, with a quota ledger and explicit fallback.`
 
 ## Before posting
 
