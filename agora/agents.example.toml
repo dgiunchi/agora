@@ -300,6 +300,93 @@ inspect = 0.4
 judge = 0.6
 research = 0.3
 
+# ---- Decision models -----------------------------------------------------------
+# A decision model answers typed questions (choice / yes-no / score) about a piece of
+# state with probabilities; it never writes text and never approves anything. Agora
+# asks one to pick the strategy (--strategy auto), the allocation preset
+# (--allocation auto), to arbitrate red-team findings from a third provider
+# (--judge decision) and to triage findings as evidence. Declared order is the order
+# tried; free ones first. Answers are cached 30 minutes. `agora decide` asks one by hand.
+# Free terms below are as recorded by FreeLLMAPI in October 2026; check before relying on them.
+[[agents]]
+id = "beatapi-jev"
+provider = "beatapi"
+kind = "decision"
+tier = "free"
+endpoint = "https://api.beatapi.io/v1/systemone"
+model = "jev-1.14-free"            # temporary free offer; one successful request per minute before any top-up
+api_key_env = "BEATAPI_API_KEY"
+decision_api = "systemone"
+reset = "rolling"
+caps_known = true
+[[agents.windows]]
+name = "minute"
+seconds = 60
+requests = 1
+
+[[agents]]
+id = "apinex-decisions"
+provider = "apinex"
+kind = "decision"
+tier = "free"
+endpoint = "https://api.apinex.bond/v1/decisions"
+model = "jev-1.14-free"            # confirm the id at apinex.bond/developers/models/decisions; Free: 5 req/min, 10M units/day
+api_key_env = "APINEX_API_KEY"
+decision_api = "systemone"
+reset = "utc-midnight"
+caps_known = true
+[[agents.windows]]
+name = "minute"
+seconds = 60
+requests = 5
+
+[[agents]]
+id = "cloudflare-clef"
+provider = "cloudflare"
+kind = "decision"
+tier = "free"
+# Replace ACCOUNT_ID. The key is an API token with Workers AI access.
+endpoint = "https://api.cloudflare.com/client/v4/accounts/ACCOUNT_ID/ai/run/@cf/cloudflare/clef-flash"
+model = "@cf/cloudflare/clef-flash"
+api_key_env = "CLOUDFLARE_API_TOKEN"
+decision_api = "cloudflare"
+reset = "utc-midnight"
+caps_known = false
+[[agents.windows]]
+name = "day"
+seconds = 86400
+
+[[agents]]
+id = "openrouter-mercury"
+provider = "openrouter"
+kind = "decision"
+tier = "free"
+endpoint = "https://openrouter.ai/api/alpha/decisions"
+model = "mercury-decide"
+api_key_env = "OPENROUTER_API_KEY"
+decision_api = "openrouter"
+reset = "rolling"
+caps_known = false
+[[agents.windows]]
+name = "minute"
+seconds = 60
+
+[[agents]]
+id = "freellmapi-decisions"
+provider = "freellmapi"
+kind = "decision"
+tier = "free"
+# A running FreeLLMAPI (with /v1/decisions) fails over across every decision model it has a key for.
+endpoint = "http://localhost:3001/v1/decisions"
+model = "auto"
+api_key_env = "FREELLMAPI_API_KEY"
+decision_api = "systemone"
+reset = "rolling"
+caps_known = false
+[[agents.windows]]
+name = "minute"
+seconds = 60
+
 # ---- Profiles (optional) -----------------------------------------------------
 # `--allocation profile:<name>` takes the first eligible agent in the declared
 # order and skips the bandit. Unknown names or agent ids are catalog errors.

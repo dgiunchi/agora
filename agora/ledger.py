@@ -7,6 +7,7 @@ move time without sleeping.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 import time
 from dataclasses import dataclass
@@ -50,6 +51,8 @@ class Ledger:
             id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL, agent TEXT, role TEXT,
             requested_model TEXT, observed_model TEXT, tokens_in INTEGER, tokens_out INTEGER,
             duration REAL, ok INTEGER, outcome TEXT)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS decision_cache(
+            key TEXT PRIMARY KEY, ts REAL NOT NULL, response TEXT NOT NULL)""")
 
     def close(self) -> None:
         self.conn.close()
@@ -132,6 +135,17 @@ class Ledger:
                 "ON CONFLICT(agent, window) DO UPDATE SET requests=excluded.requests, tokens=excluded.tokens",
                 (spec.id, w.name, req_cap, tok_cap))
         return until
+
+    # -- decision cache ---------------------------------------------------
+    def decision_cache_get(self, key: str, ttl: float) -> dict | None:
+        row = self.conn.execute("SELECT ts, response FROM decision_cache WHERE key=?", (key,)).fetchone()
+        if row is None or self.now() - float(row["ts"]) > ttl:
+            return None
+        return json.loads(row["response"])
+
+    def decision_cache_put(self, key: str, data: dict) -> None:
+        self.conn.execute("INSERT OR REPLACE INTO decision_cache(key, ts, response) VALUES(?,?,?)",
+                          (key, self.now(), json.dumps(data)))
 
     def learned(self, agent_id: str) -> dict[str, dict[str, int | None]]:
         """Caps learned from rate limits, per window."""

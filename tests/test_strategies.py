@@ -119,13 +119,20 @@ class StrategyTests(unittest.TestCase):
         self.assertEqual(out.rounds_used, 1)
         self.assertNotIn("judge", [a.role for a in out.allocations])
 
-    def test_failed_proof_means_llm_cannot_clear(self):
+    def test_failed_proof_before_build_does_not_veto_the_judge(self):
+        # the proof is expected to fail while the deliverable does not exist; it is evidence for
+        # the judge, not a veto. After the build a failing proof stops the loop by itself.
         repo = self.tmp / "repo"
-        script = {"*": {"review": [review("REVISE", [finding("R1")])], "judge": [{"json": {"unresolved": []}}]}}
+        script = {"*": {"review": [review("REVISE", [finding("R1")])], "judge": [{"json": {"unresolved": []}}],
+                        "build": [toy_build_response()]}}
         coord, ledger = make_coordinator(self.tmp, "adversarial", script, judge="both", rounds=2)
-        coord.config.proof_cmd = proof_cmd_for(repo)  # toy.py does not exist: proof fails
+        coord.config.proof_cmd = proof_cmd_for(repo)  # toy.py does not exist yet: proof fails pre-build
         out = coord.run()
-        self.assertEqual(out.status, "rounds_exhausted")
+        self.assertEqual(out.status, "completed", out.reason)
+        judged = [e for e in events(coord, "JUDGE") if e["by"] == "llm"][0]
+        self.assertEqual(judged["unresolved"], [])
+        self.assertIn("before the build", judged["proof"])
+        self.assertEqual(len(events(coord, "REVISION")), 0)
 
     def test_judge_both_degrades_visibly_with_two_providers(self):
         """No third provider: the LLM judge is skipped and logged, every red-team

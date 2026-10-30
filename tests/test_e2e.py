@@ -15,6 +15,8 @@ class EndToEndTests(unittest.TestCase):
         return {"*": {"review": [review("REVISE", [finding("F1", "high", "PLAN.md")]), review("APPROVED")],
                       "plan": [{"json": {"plan": "# Plan v1\n\nadd(a, b) returns a + b"}},
                                {"json": {"plan": "# Plan v2\n\nadd(a, b) returns a + b; F1 addressed"}}],
+                      # the judge keeps F1 in round 1 (a pre-build proof failure is evidence, not a veto)
+                      "judge": [{"json": {"unresolved": ["F1"]}}, {"json": {"unresolved": []}}],
                       "build": [toy_build_response()],
                       "inspect": [review("APPROVED", [finding("L1", "low", "toy.py")], coverage=["toy.py"])]}}
 

@@ -1,0 +1,19 @@
+{
+  "role": "plan",
+  "agent": "codex",
+  "ok": true,
+  "duration_s": 85.8,
+  "exit_code": 0,
+  "timed_out": false,
+  "error": null,
+  "response": {
+    "plan": "<see PLAN.md>"
+  },
+  "usage": {
+    "input_tokens": 61622,
+    "cached_input_tokens": 40320,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 890,
+    "reasoning_output_tokens": 13
+  }
+}

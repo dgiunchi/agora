@@ -1,0 +1,9 @@
+{
+  "role": "build",
+  "agent": "claude-code",
+  "ok": false,
+  "duration_s": 906.9,
+  "exit_code": null,
+  "timed_out": true,
+  "error": "timeout after 900.0s; process tree killed"
+}

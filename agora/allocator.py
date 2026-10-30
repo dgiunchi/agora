@@ -65,6 +65,8 @@ class Allocator:
                  require_installed: bool = True) -> None:
         self.catalog = catalog
         self.ledger = ledger
+        if strategy == "auto":           # decided per task by a decision model; auto:smart until then
+            strategy = "auto:smart"
         self.strategy = strategy
         self.reserve = reserve
         self.rng = random.Random(seed)
@@ -133,10 +135,17 @@ class Allocator:
                 rejected[spec.id] = why
         return ok, rejected
 
+    def set_strategy(self, strategy: str) -> None:
+        """Switch preset weights (used when `--allocation auto` is decided per task)."""
+        if strategy not in STRATEGY_WEIGHTS:
+            raise AllocationError(f"unknown allocation strategy {strategy!r}")
+        self.strategy = strategy
+        self.weights = STRATEGY_WEIGHTS[strategy]
+
     def _profile_pool(self) -> list[AgentSpec]:
         if self.profile is not None:
             return [self.catalog[a] for a in self.profiles[self.profile] if a in self.catalog]
-        return list(self.catalog.values())
+        return [s for s in self.catalog.values() if s.kind != "decision"]   # decision models never fill a role
 
     # -- scoring ----------------------------------------------------------
     def score(self, spec: AgentSpec, req: RoleRequest) -> tuple[float, dict[str, float]]:

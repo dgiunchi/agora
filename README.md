@@ -28,6 +28,7 @@ N coding agents. One bounded loop. Zero API bills.
 - [Three use cases, end to end](#three-use-cases-end-to-end)
 - [Strategies](#strategies)
 - [Allocation](#allocation)
+- [Decisions](#decisions)
 - [What an approval means](#what-an-approval-means)
 - [Tests](#tests)
 - [Limitations and terms of service](#limitations-and-terms-of-service)
@@ -85,7 +86,7 @@ Yes, on two levels.
 
 Codex executed the tests against the proposed algorithm in memory during review, without write access, and verified the imports were standard library only. The unedited log, plan, built code and both verdicts with token usage are in [`examples/live-run-2026-10-29/`](examples/live-run-2026-10-29/). The first attempt that day failed because Codex's default model is rejected on ChatGPT accounts: the loop logged a fallback to Claude for planning, then refused to let Claude review its own plan and stopped with the reason. That is the designed behaviour, and it is recorded too. Details in [`VALIDATION.md`](VALIDATION.md). Later the same day the three bundled [use cases](#three-use-cases-end-to-end) ran live as well, and two of them found real bugs in Agora: an inspector that could end up checking code its own provider had written after a timed-out build, and a rate-limit detector that matched Agora's own log line when a reviewer echoed it. Both are fixed, tested, and left in the record.
 
-**Automatically, without spending quota.** 118 tests run on fake agent processes and disposable git repositories on every push, across Ubuntu, Windows and macOS. They cover the ledger, the allocator's hard filters across 1,000 randomised draws, the verdict schema, timeouts and process-tree kills, SHA-bound approvals, all three strategies, explicit fallback, and three end-to-end loops with a real proof command. See [Tests](#tests).
+**Automatically, without spending quota.** 135 tests run on fake agent processes and disposable git repositories on every push, across Ubuntu, Windows and macOS. They cover the ledger, the allocator's hard filters across 1,000 randomised draws, the verdict schema, timeouts and process-tree kills, SHA-bound approvals, all three strategies, explicit fallback, and three end-to-end loops with a real proof command. See [Tests](#tests).
 
 **And it was reviewed before it was announced.** Two independent adversarial review passes over the code and the docs, run before the first release, returned 27 code findings and 29 documentation findings. Five were release-blocking: on Windows a quoted proof command could pass vacuously, "read-only" roles were a request to the CLI rather than a verified fact, a planner could be chosen to review its own revision, npm `.cmd` shims would have put the prompt through `cmd.exe`, and the example catalog was missing from the package. Every one is fixed and pinned by `tests/test_hardening.py`; the full list and what was done about each item is in [`VALIDATION.md`](VALIDATION.md#pre-release-review-2026-10-30).
 
@@ -120,6 +121,7 @@ Any CLI with a headless mode, plus any OpenAI-compatible HTTP endpoint. The exam
 | Claude Code, Codex CLI | cli | **tested live**, four completed loops with each tool in the plan, review, build and inspect roles; the LLM judge has not run live yet (see [use cases](#three-use-cases-end-to-end) and `VALIDATION.md`) | read-only roles get `exec -s read-only` / disallowed edit tools, builders `exec -s workspace-write` / `acceptEdits`, as in Claudex Loop |
 | Gemini CLI, Qwen Code, OpenCode, Aider, Goose, Crush, Kilo Code, Cline | cli | declared | headless argv from each tool's docs; send a PR with a `VALIDATION.md` entry once you have run one |
 | FreeLLMAPI, Ollama, vLLM, LM Studio | http | **tested** (fake server in CI) | any `/v1/chat/completions` endpoint |
+| BeatAPI JEV, APINex, Cloudflare Clef, OpenRouter Mercury Decide, FreeLLMAPI `/v1/decisions` | decision | **tested** (fake server in CI); live check pending a free key | typed `choice` / yes-no / `score` answers that steer choices and never approve anything (see [Decisions](#decisions)) |
 
 Adding an agent is one TOML table. See [`agents.example.toml`](agents.example.toml).
 
@@ -173,7 +175,7 @@ The bundled fixture is `slugify()` with five failing tests. Live, first run:
 | proof | `python -m unittest -q` | 1 s | Ran 5 tests, OK |
 | inspect | Claude Code, fresh session | 208 s | **APPROVED**, 2 low (NFKD drops ß/æ/ø; `__pycache__` untracked) |
 
-That run completed, and it also exposed a gap. The killed Claude turn had already written the implementation; Codex only verified it; and the inspector was chosen to be independent of the *recorded* builder, Codex, so Claude inspected code Claude wrote. The loop now treats any agent whose failed write turn changed the working tree as an author: the `FALLBACK` line carries `tree_changed=true`, the `INSPECT` line lists `also_touched`, and the inspector must be independent of every author. With two providers that first run would now stop with `no eligible agent for role 'inspect'`, which is the honest outcome. Three fake-agent tests pin the rule. A second run under the fixed rule got a clean plan (158 s) and a zero-finding approval from Codex (44 s) before the host machine's memory reaper killed it during the build; the record is in `VALIDATION.md`.
+That run completed, and it also exposed a gap. The killed Claude turn had already written the implementation; Codex only verified it; and the inspector was chosen to be independent of the *recorded* builder, Codex, so Claude inspected code Claude wrote. The loop now treats any agent whose failed write turn changed the working tree as an author: the `FALLBACK` line carries `tree_changed=true`, the `INSPECT` line lists `also_touched`, and the inspector must be independent of every author. With two providers that first run would now stop with `no eligible agent for role 'inspect'`, which is the honest outcome. Three fake-agent tests pin the rule. A second run under the hardened rules completed cleanly: Codex planned, Claude approved with two low findings (297 s), Claude's build turn timed out at 900 s without touching the tree (the host's hooks again), Codex built on fallback in 65 s, the proof passed 5/5, and a fresh Claude session inspected and approved with three low findings (339 s). One fallback, every author accounted for, the inspector independent of all of them. The record is in [`result/run-2`](examples/use-cases/feature-review/result/run-2/). The attempt before it was stopped by the new read-only rule on a false positive, a host plugin writing a session file into the fixture during a clean review; that is fixed and both attempts are in `VALIDATION.md`.
 
 ### 2. Red-team a parser before it ships
 
@@ -231,7 +233,7 @@ Three rounds, zero fallbacks, four low findings left open. The memo and every ve
 | `adversarial` | plan → red team + judge → build → red-team inspect | parsers, security, anything with nasty edge cases |
 | `hybrid` (default) | plan → peer review → red team + judge → build → inspect | anything you would ship |
 
-Tunables: `--rounds` (plan-review cap, default 5), `--quorum` (independent approvals needed), `--judge llm|proof-cmd|both` (a failing proof overrides the LLM judge; `--judge proof-cmd` alone clears every finding on a pass), `--max-fix-rounds`, `--max-inspection-rounds`, `--builder <id>`, `--no-fallback`.
+Tunables: `--rounds` (plan-review cap, default 5), `--quorum` (independent approvals needed), `--judge llm|proof-cmd|both|decision` (before the build the proof command is evidence for the judge, since it is expected to fail while the deliverable does not exist; after the build a failing proof stops the loop whatever any judge said; `--judge proof-cmd` alone clears every finding on a pass), `--max-fix-rounds`, `--max-inspection-rounds`, `--builder <id>`, `--no-fallback`.
 
 The LLM judge must be independent of both the planner and the red team, so it needs a third provider. With only two providers the default `--judge both` skips the judge, logs `JUDGE by=llm round=N skipped=true`, and sends every red-team finding back to the planner; `--dry-run` tells you in advance. `--judge llm` fails loudly instead.
 
@@ -246,6 +248,21 @@ The allocator never spends quota and never bends a hard rule:
 3. **Explicit fallback**: a 429, a timeout or a crash mid-turn moves to the next eligible agent unless you pass `--no-fallback`, and the log records `fallback_from`, `fallback_to` and the reason. Claudex Loop's "no silent fallback" rule stays intact; FreeLLMAPI's fail-over becomes a visible event.
 
 The ledger is SQLite. Unknown caps start optimistic and are learned from the first rate limit; declared caps always win. Windows reset at UTC midnight or roll, per agent.
+
+## Decisions
+
+A decision model does not write text. It answers typed questions about a piece of state, `choice`, `noul` (yes or no) or `score`, with probabilities and a confidence, in well under a second, and the free ones cost nothing: BeatAPI's JEV models (`jev-1.14-free`, one request a minute), APINex's free decision route, Cloudflare Workers AI's Clef, OpenRouter's Mercury Decide, or a running FreeLLMAPI that fails over across all of them. In the catalog they are entries with `kind = "decision"`, tried in declared order (free first), counted by the ledger like any agent, and cached for 30 minutes so a retried turn never spends a one-per-minute quota twice.
+
+Agora asks them only where it would otherwise choose by rule, and a decision is never an approval:
+
+| You pass | The question | Default when no model answers confidently |
+|---|---|---|
+| `--strategy auto` | which strategy fits this task | `hybrid` |
+| `--allocation auto` | which allocation preset fits this task | `auto:smart` |
+| `--judge decision` | does this red-team finding still stand; a decision model is a third provider, so two coding agents are enough for an arbitrated red team | the finding stands and goes back to the planner |
+| nothing, always | is each material finding specific and how severe is it, as evidence in the log | nothing changes |
+
+Every answer is logged with the model that answered, the value and the confidence (`DECISION decision=judge model=jev-1.14-free answers={"status": {"value": "addressed", "confidence": 0.81}}`), every fallback too (`DECISION decision=strategy fallback=no decision model ready (beatapi-jev: BEATAPI_API_KEY not set)`), `--dry-run` says which model would answer, and `--no-decisions` switches it all off. `agora decide --state "harden parse_size" --choice strategy=collaborative,adversarial,hybrid` asks one by hand. The integration is verified against a fake decision server in the test suite; a live check against a free JEV model needs a key and is recorded in `VALIDATION.md` once run.
 
 ## What an approval means
 
@@ -278,6 +295,7 @@ python -m unittest discover -s tests -t . -v
 | strategies | all three reach a terminal state inside the round cap; BLOCKED, malformed, duplicate ids and APPROVED-with-material are rejected; quorum; judge rules; tampered plan refused; fix rounds |
 | fallback | logged with `fallback_from`, `fallback_to`, `reason`; `--no-fallback` fails loudly; independence survives fallback; budget |
 | hardening | Windows proof-command quoting; a read-only turn that changes the tree fails and becomes an author; a builder rewriting the approved plan is refused; the reviser never reviews its own revision; quorum peers from distinct providers; hybrid re-reviews a red-team revision; `[profiles]` validated and unknown profiles refused; agents without an executable are skipped; npm shims resolved and unknown `.cmd` files refused; a killed turn is never rate-limited by keyword; learned caps exclude the rejected request; token usage reaches the ledger; agent text cannot forge a log line; a missing proof command is logged and reported; `agents init`; mistakes exit 2 without a traceback |
+| decisions | typed answers parsed for the three response shapes; wrong model, malformed and out-of-criteria answers rejected; 429 enters cooldown and the next model is tried; cache stops a second request; missing key and independence reported, never raised; `--strategy auto` follows a confident decision and defaults to hybrid otherwise; `--allocation auto` switches the preset; `--judge decision` clears only a confident `addressed`/`out_of_scope`, needs a third provider, and treats a pre-build proof as evidence; triage logged; dry-run notes; `agora decide` and doctor |
 | two providers | judge skipped and logged with `--judge both`, loop still converges; `--judge llm` fails loudly; dry-run drops the judge with a note |
 | end to end | three fake agents, a toy repo, a real proof command, all three strategies, log and per-agent quota asserted |
 

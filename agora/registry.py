@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import Any
 
 ROLES = ("plan", "review", "build", "inspect", "judge", "research")
-KINDS = ("cli", "http")
+KINDS = ("cli", "http", "decision")
+DECISION_APIS = ("systemone", "cloudflare", "openrouter")   # request shapes, see decisions.py
 TIERS = ("free", "subscription", "paid")
 RESETS = ("utc-midnight", "rolling")
 TRUST = ("independent", "any")
@@ -44,6 +45,7 @@ class AgentSpec:
     node_entry: str | None = None
     endpoint: str | None = None
     api_key_env: str | None = None
+    decision_api: str = "systemone"        # kind = "decision" only
     output_format: str = "json"
     model: str | None = None
     reset: str = "utc-midnight"
@@ -91,10 +93,13 @@ def validate_catalog(data: dict[str, Any]) -> list[str]:
             elif not any("{prompt}" in x for x in argv):
                 errors.append(f"{where}: argv must contain a {{prompt}} placeholder")
         else:
+            kind = a.get("kind")
             if not isinstance(a.get("endpoint"), str) or not a.get("endpoint"):
-                errors.append(f"{where}: http agents need an endpoint URL")
+                errors.append(f"{where}: {kind} agents need an endpoint URL")
             if not isinstance(a.get("model"), str) or not a.get("model"):
-                errors.append(f"{where}: http agents need a model")
+                errors.append(f"{where}: {kind} agents need a model")
+            if kind == "decision" and a.get("decision_api", "systemone") not in DECISION_APIS:
+                errors.append(f"{where}: decision_api must be one of {DECISION_APIS}")
         for key in ("read_only_argv", "write_argv", "resume_argv"):
             if key in a and (not isinstance(a[key], list) or not all(isinstance(x, str) for x in a[key])):
                 errors.append(f"{where}: {key} must be a list of strings")
@@ -160,6 +165,7 @@ def _spec_from_table(a: dict[str, Any]) -> AgentSpec:
         node_entry=a.get("node_entry"),
         endpoint=a.get("endpoint"),
         api_key_env=a.get("api_key_env"),
+        decision_api=a.get("decision_api", "systemone"),
         output_format=a.get("output_format", "json"),
         model=a.get("model"),
         reset=a.get("reset", "utc-midnight"),

@@ -11,7 +11,8 @@ from pathlib import Path
 
 from . import __version__
 from .allocator import AllocationError, Allocator
-from .coordinator import ALL_ROLES, JUDGES, STRATEGIES, Coordinator, LoopConfig
+from .coordinator import ALL_ROLES, JUDGES, STRATEGY_CHOICES, Coordinator, LoopConfig
+from .decisions import Decider, choice, noul, score
 from .ledger import Ledger
 from .registry import CatalogError, load_catalog, load_profiles
 from .runner import build_argv, resolve_launch
@@ -57,6 +58,12 @@ def _allocator(args: argparse.Namespace, catalog, ledger, path: Path) -> Allocat
                      require_installed=not getattr(args, "assume_installed", False))
 
 
+def _decider(args: argparse.Namespace, catalog, ledger) -> Decider | None:
+    if getattr(args, "no_decisions", False) or not any(s.kind == "decision" for s in catalog.values()):
+        return None
+    return Decider(catalog, ledger, timeout=args.decision_timeout, min_confidence=args.decision_min_confidence)
+
+
 def _ledger_path(explicit: str | None) -> str:
     if explicit:
         return explicit
@@ -77,7 +84,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                      repo=Path(args.repo), plan_file=args.plan, log_file=args.log, timeout=args.timeout,
                      builder=args.builder, artifacts_root=Path(args.artifacts) if args.artifacts else None,
                      fallback_roles=() if args.no_fallback else ALL_ROLES)
-    coord = Coordinator(cfg, catalog, ledger, allocator)
+    coord = Coordinator(cfg, catalog, ledger, allocator, decider=_decider(args, catalog, ledger))
     print(f"catalog: {path}")
     if args.dry_run:
         try:
@@ -118,7 +125,7 @@ def cmd_roles(args: argparse.Namespace) -> int:
     allocator = _allocator(args, catalog, ledger, path)
     cfg = LoopConfig(task="(roles preview)", strategy=args.strategy, allocation=args.allocation,
                      quorum=args.quorum, builder=args.builder, judge=args.judge)
-    coord = Coordinator(cfg, catalog, ledger, allocator)
+    coord = Coordinator(cfg, catalog, ledger, allocator, decider=_decider(args, catalog, ledger))
     try:
         allocs = coord.dry_run()
     except AllocationError as exc:
@@ -152,6 +159,49 @@ def cmd_quota(args: argparse.Namespace) -> int:
             rc = w['requests_cap'] if w['requests_cap'] is not None else '?'
             tc = w['tokens_cap'] if w['tokens_cap'] is not None else '?'
             print(f"{'':<18}  {w['window']:<10} {w['requests']}/{rc} req   {w['tokens']}/{tc} tok")
+    return 0
+
+
+def cmd_decide(args: argparse.Namespace) -> int:
+    """Ask the catalog's decision models one ad-hoc question set. Spends one decision request."""
+    path = _find_catalog(args.catalog)
+    catalog = load_catalog(path)
+    ledger = Ledger(_ledger_path(args.ledger))
+    decider = _decider(args, catalog, ledger)
+    if decider is None:
+        print("decide: no decision model in the catalog (kind = \"decision\")", file=sys.stderr)
+        return 2
+    questions = {}
+    for item in args.choice or ():
+        name, _, opts = item.partition("=")
+        options = [o.strip() for o in opts.split(",") if o.strip()]
+        if not name or len(options) < 2:
+            print(f"decide: --choice needs NAME=opt1,opt2[,...], got {item!r}", file=sys.stderr)
+            return 2
+        questions[name] = choice(args.instructions or f"Pick the best option for {name}.", {o: o for o in options})
+    for name in args.noul or ():
+        questions[name] = noul(args.instructions or f"Is {name} true of the state?")
+    for item in args.score or ():
+        name, _, lv = item.partition("=")
+        levels = [o.strip() for o in lv.split(",") if o.strip()]
+        if not name or len(levels) < 2:
+            print(f"decide: --score needs NAME=low,...,high, got {item!r}", file=sys.stderr)
+            return 2
+        questions[name] = score(args.instructions or f"Rate {name} of the state.", levels)
+    if not questions:
+        print("decide: give at least one --choice, --noul or --score", file=sys.stderr)
+        return 2
+    state = Path(args.state_file).read_text(encoding="utf-8") if args.state_file else (args.state or "")
+    for s, why in decider.availability():
+        print(f"{s.id:<22} {s.model:<28} {'ready' if why is None else why}")
+    d, reason = decider.decide(state, questions)
+    if d is None:
+        print(f"decide: {reason}", file=sys.stderr)
+        return 2
+    print(f"answered by {d.agent_id} model={d.model} cached={d.cached} latency={d.latency:.2f}s")
+    for name, a in d.answers.items():
+        extra = f" probabilities={json.dumps(a.probabilities)}" if a.probabilities is not None else ""
+        print(f"  {name}: {a.type}={a.value} confidence={a.confidence:.2f}{extra}")
     return 0
 
 
@@ -190,6 +240,10 @@ def _agents_init(dest: Path, *, force: bool) -> int:
 def _probe(spec) -> tuple[str, str]:
     """One doctor row: (status, line). ok | WARN | MISSING. Never spends quota."""
     sid = f"{spec.id:<18}"
+    if spec.kind == "decision":
+        has_key = not spec.api_key_env or bool(os.environ.get(spec.api_key_env))
+        return ("ok" if has_key else "WARN"), (f"{sid} decision endpoint={spec.endpoint}  model={spec.model}  "
+                                              f"api={spec.decision_api}  key_env={'set' if has_key else 'missing'}")
     if spec.kind == "http":
         has_key = bool(spec.api_key_env and os.environ.get(spec.api_key_env))
         return "ok", f"{sid} http     endpoint={spec.endpoint}  model={spec.model}  key_env={'set' if has_key else 'missing'}"
@@ -225,7 +279,14 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--catalog", help="agents.toml path (default: ./agents.toml or ~/.agora/)")
     common.add_argument("--ledger", help="SQLite ledger path (default: ~/.agora/ledger.sqlite)")
     common.add_argument("--allocation", default="auto:smart",
-                        help="auto:smart | auto:fast | auto:cheap | profile:<name> (a [profiles] entry in the catalog)")
+                        help="auto:smart | auto:fast | auto:cheap | profile:<name> (a [profiles] entry in the catalog) "
+                             "| auto (a decision model picks the preset per task)")
+    common.add_argument("--no-decisions", action="store_true",
+                        help="never consult a decision model; every decided choice takes its default")
+    common.add_argument("--decision-min-confidence", type=float, default=0.5,
+                        help="below this confidence a decision falls back to the default (default 0.5)")
+    common.add_argument("--decision-timeout", type=float, default=5.0,
+                        help="seconds to wait for a decision model before using the default (default 5)")
     common.add_argument("--seed", type=int, default=None, help="seed the bandit for reproducible allocation")
     common.add_argument("--assume-installed", action="store_true",
                         help="do not skip agents whose executable is missing (dry runs on another machine)")
@@ -233,12 +294,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     r = sub.add_parser("run", parents=[common], help="run one loop")
     r.add_argument("task")
-    r.add_argument("--strategy", choices=STRATEGIES, default="hybrid")
+    r.add_argument("--strategy", choices=STRATEGY_CHOICES, default="hybrid",
+                   help="auto lets a decision model pick per task (hybrid when none answers)")
     r.add_argument("--rounds", type=int, default=5)
     r.add_argument("--max-fix-rounds", type=int, default=2)
     r.add_argument("--max-inspection-rounds", type=int, default=2)
     r.add_argument("--quorum", type=int, default=1)
-    r.add_argument("--judge", choices=JUDGES, default="both")
+    r.add_argument("--judge", choices=JUDGES, default="both",
+                   help="decision: a decision model from a third provider arbitrates red-team findings")
     r.add_argument("--proof-cmd",
                    help='command that proves the deliverable, one quoted string, e.g. --proof-cmd "python -m unittest -q"')
     r.add_argument("--repo", default=".")
@@ -252,7 +315,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.set_defaults(fn=cmd_run)
 
     ro = sub.add_parser("roles", parents=[common], help="show who would fill each role")
-    ro.add_argument("--strategy", choices=STRATEGIES, default="hybrid")
+    ro.add_argument("--strategy", choices=STRATEGY_CHOICES, default="hybrid")
     ro.add_argument("--quorum", type=int, default=1)
     ro.add_argument("--builder")
     ro.add_argument("--judge", choices=JUDGES, default="both")
@@ -263,6 +326,15 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument("--forget", action="append", metavar="AGENT",
                    help="drop learned caps and cooldown for AGENT (after a misdetected rate limit)")
     q.set_defaults(fn=cmd_quota)
+
+    d = sub.add_parser("decide", parents=[common], help="ask the catalog's decision models one question set")
+    d.add_argument("--state", help="the text the questions are about")
+    d.add_argument("--state-file", help="read the state from a file")
+    d.add_argument("--choice", action="append", metavar="NAME=opt1,opt2[,...]")
+    d.add_argument("--noul", action="append", metavar="NAME", help="a yes/no question")
+    d.add_argument("--score", action="append", metavar="NAME=low,...,high", help="a rubric, lowest level first")
+    d.add_argument("--instructions", help="the question text (default: a generic one per question)")
+    d.set_defaults(fn=cmd_decide)
 
     a = sub.add_parser("agents", parents=[common], help="init, list or doctor the catalog")
     a.add_argument("agents_cmd", choices=("init", "list", "doctor"),

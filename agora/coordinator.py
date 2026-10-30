@@ -24,6 +24,7 @@ from . import runner as _runner
 from .allocator import Allocation, AllocationError, Allocator, RoleRequest
 from .approval import (Approval, bind_approval, check_approval, current_commit,
                        inspection_fingerprint, plan_sha256)
+from .decisions import Decider, Decision, choice, noul, score
 from .ledger import Ledger
 from .prompts import (BUILD_PROMPT, FIX_FINDINGS_PROMPT, FIX_PROMPT, INSPECT_PROMPT,
                       INSPECT_REDTEAM_PROMPT, JUDGE_PROMPT, PLAN_PROMPT, REDTEAM_PROMPT,
@@ -32,7 +33,9 @@ from .registry import AgentSpec
 from .review import Review, ReviewError, extract_json, parse_review
 
 STRATEGIES = ("collaborative", "adversarial", "hybrid")
-JUDGES = ("llm", "proof-cmd", "both")
+STRATEGY_CHOICES = STRATEGIES + ("auto",)         # auto: a decision model picks per task
+JUDGES = ("llm", "proof-cmd", "both", "decision")  # decision: a decision model from a third provider
+ALLOCATION_CHOICES = ("auto:smart", "auto:fast", "auto:cheap")
 ALL_ROLES = ("plan", "review", "build", "inspect", "judge")
 
 
@@ -62,8 +65,8 @@ class LoopConfig:
     env: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if self.strategy not in STRATEGIES:
-            raise ValueError(f"strategy must be one of {STRATEGIES}")
+        if self.strategy not in STRATEGY_CHOICES:
+            raise ValueError(f"strategy must be one of {STRATEGY_CHOICES}")
         if self.judge not in JUDGES:
             raise ValueError(f"judge must be one of {JUDGES}")
         if self.quorum < 1 or self.rounds < 1:
@@ -110,8 +113,7 @@ def role_requests_for(strategy: str, quorum: int = 1, builder: str | None = None
             reqs.append(RoleRequest("review", independent_of=("role:plan", "role:review")))
     if strategy in ("adversarial", "hybrid"):
         reqs.append(RoleRequest("review", independent_of=("role:plan",)))
-        if judge != "proof-cmd":
-            # the judge checks the red team (the latest reviewer) and the planner, not the peers
+        if judge in ("llm", "both"):      # proof-cmd and decision judges need no agent role
             reqs.append(RoleRequest("judge", independent_of=("role:plan", "last:review")))
     reqs.append(RoleRequest("build"))
     reqs.append(RoleRequest("inspect", independent_of=("role:build",), fresh=True))
@@ -121,11 +123,12 @@ def role_requests_for(strategy: str, quorum: int = 1, builder: str | None = None
 class Coordinator:
     def __init__(self, config: LoopConfig, catalog: dict[str, AgentSpec], ledger: Ledger,
                  allocator: Allocator, *, run_turn: Callable[..., _runner.TurnResult] = _runner.run_turn,
-                 now: Callable[[], float] = time.time) -> None:
+                 now: Callable[[], float] = time.time, decider: Decider | None = None) -> None:
         self.config = config
         self.catalog = catalog
         self.ledger = ledger
         self.allocator = allocator
+        self.decider = decider
         self._run_turn = run_turn
         self._now = now
         self.outcome = LoopOutcome(status="failed")
@@ -231,6 +234,81 @@ class Coordinator:
             alloc = nxt
             attempts += 1
 
+    # -- decisions --------------------------------------------------------
+    def _decide(self, kind: str, state: Any, questions: dict, *, exclude_providers: tuple[str, ...] = (),
+                **extra: Any) -> Decision | None:
+        """Ask the decision model and log the answer or the fallback. Never raises."""
+        if self.decider is None:
+            self.log("DECISION", decision=kind, fallback="decisions off", **extra)
+            return None
+        d, reason = self.decider.decide(state, questions, exclude_providers=exclude_providers)
+        if d is None:
+            self.log("DECISION", decision=kind, fallback=reason, **extra)
+            return None
+        answers = {k: {"value": a.value, "confidence": round(a.confidence, 3)} for k, a in d.answers.items()}
+        self.log("DECISION", decision=kind, model=d.model, provider=d.provider, cached=d.cached, answers=answers, **extra)
+        return d
+
+    def _confident(self, d: Decision | None, qid: str) -> bool:
+        return d is not None and self.decider is not None and d.answers[qid].confidence >= self.decider.min_confidence
+
+    def _choose(self, kind: str, state: Any, question: Any, default: str) -> str:
+        d = self._decide(kind, state, {kind: question})
+        if self._confident(d, kind):
+            value = str(d.answers[kind].value)
+            self.log("CHOICE", decision=kind, value=value, source="decision")
+            return value
+        self.log("CHOICE", decision=kind, value=default, source="default",
+                 reason="no confident decision" if d is not None else "no decision")
+        return default
+
+    def _choose_strategy(self) -> str:
+        q = choice("Which review strategy fits this task best?", {
+            "collaborative": "features, refactors, migrations, documents: peers review the plan for correctness",
+            "adversarial": "parsers, input validation, security, anything where the question is what input breaks it: a red team attacks the plan",
+            "hybrid": "anything that will be shipped: peers first, then a red team"})
+        return self._choose("strategy", self.config.task[:1600], q, "hybrid")
+
+    def _choose_allocation(self) -> str:
+        q = choice("Which allocation preset fits this task best?", {
+            "auto:smart": "hard or subtle work: prefer the most capable agents",
+            "auto:fast": "small or urgent work: prefer the fastest agents",
+            "auto:cheap": "routine work: prefer free tiers and the most remaining quota"})
+        value = self._choose("allocation", self.config.task[:1600], q, "auto:smart")
+        self.allocator.set_strategy(value)
+        return value
+
+    def _triage(self, findings: list[dict]) -> None:
+        """Evidence only: how specific and how serious each material finding looks."""
+        for f in findings:
+            q = {"specific": noul("Does the finding cite a concrete line, input, fact or test that can be checked?"),
+                 "severity": score("How serious is this finding for the deliverable?",
+                                   ["cosmetic", "low", "medium", "high"])}
+            self._decide("triage", {"finding": f}, q, finding=f.get("id"))
+
+    def _judge_by_decision(self, red_id: str, plan_text: str, remaining: list[dict], round_no: int,
+                           proof_ran: bool, proof_ok: bool) -> list[dict]:
+        """A decision model from a provider independent of the planner and the red team decides,
+        per finding, whether it still stands. Only a confident `addressed` or `out_of_scope`
+        clears a finding; a failing proof clears nothing."""
+        blocked = tuple({self.catalog[a].provider for a in [*self._plan_authors, red_id] if a in self.catalog})
+        proof_state = ("passed" if proof_ok else
+                       "failed before the build (expected while the deliverable does not exist)"
+                       if proof_ran else "not run")
+        kept: list[dict] = []
+        for f in remaining:
+            q = {"status": choice("Does this red-team finding still stand against the plan?", {
+                "stands": "the plan does not handle it; the planner must revise",
+                "addressed": "the plan as written already handles it",
+                "out_of_scope": "it is not part of this task's deliverable"})}
+            state = {"task": self.config.task, "plan": plan_text, "finding": f, "proof": proof_state}
+            d = self._decide("judge", state, q, exclude_providers=blocked, finding=f.get("id"))
+            if d is None or d.answers["status"].value == "stands" or not self._confident(d, "status"):
+                kept.append(f)
+        self.log("JUDGE", by="decision", round=round_no, unresolved=[f["id"] for f in kept],
+                 cleared=[f["id"] for f in remaining if f not in kept], proof=proof_state)
+        return kept
+
     # -- phases -----------------------------------------------------------
     def _phase_plan(self) -> None:
         req = RoleRequest("plan")
@@ -281,6 +359,8 @@ class Coordinator:
                 self.outcome.open_findings = [f.__dict__ for _, r, _ in reviews for f in r.findings]
                 return False
             unresolved: list[dict] = [f.__dict__ for _, r, _ in reviews for f in r.material_findings]
+            if unresolved and self.decider is not None:
+                self._triage(unresolved)
             if mode == "adversarial" and unresolved:
                 unresolved = self._judge(reviews[0][0].agent_id, plan_text, unresolved, round_no)
             if mode == "collaborative":
@@ -315,12 +395,14 @@ class Coordinator:
         """Decide which red-team findings stand. Proof commands win on conflict."""
         remaining = list(findings)
         proof_ran = proof_ok = False
-        if self.config.judge in ("proof-cmd", "both") and self.config.proof_cmd:
+        if self.config.judge in ("proof-cmd", "both", "decision") and self.config.proof_cmd:
             proof_ran, proof_ok = True, self._run_proof()
             cleared = [f["id"] for f in remaining] if proof_ok and self.config.judge == "proof-cmd" else []
             self.log("JUDGE", by="proof-cmd", round=round_no, passed=proof_ok, cleared=cleared)
             if proof_ok and self.config.judge == "proof-cmd":
                 return []
+        if self.config.judge == "decision":
+            return self._judge_by_decision(red_id, plan_text, remaining, round_no, proof_ran, proof_ok)
         if self.config.judge in ("llm", "both"):
             req = RoleRequest("judge", independent_of=(*self._plan_authors, red_id))
             eligible, rejected = self.allocator.eligible(req)
@@ -333,7 +415,12 @@ class Coordinator:
                          reason=f"no independent judge available ({why})",
                          unresolved=[f["id"] for f in remaining])
                 return remaining
-            proof_state = "passed" if proof_ok else ("failed" if proof_ran else "not run")
+            # Before the build the proof is evidence only: it is expected to fail while the
+            # deliverable does not exist yet. After the build a failing proof stops the loop
+            # on its own (see _phase_build and _phase_inspect), whatever any judge said.
+            proof_state = ("passed" if proof_ok else
+                           "failed before the build (expected while the deliverable does not exist)"
+                           if proof_ran else "not run")
             prompt = JUDGE_PROMPT.format(plan=plan_text, findings=json.dumps(remaining, indent=2),
                                          proof=proof_state)
             alloc, result = self._turn(req, prompt, read_only=True)
@@ -348,9 +435,7 @@ class Coordinator:
             wanted = {str(i) for i in ids}
             llm_remaining = [f for f in remaining if f["id"] in wanted]
             self.log("JUDGE", by="llm", round=round_no, agent=alloc.agent_id,
-                     unresolved=[f["id"] for f in llm_remaining])
-            if proof_ran and not proof_ok:
-                return remaining  # proof failed: the LLM cannot clear anything
+                     unresolved=[f["id"] for f in llm_remaining], proof=proof_state)
             return llm_remaining
         return remaining
 
@@ -490,10 +575,27 @@ class Coordinator:
                     f"CLI's default permissions and fails if it changes the working tree.")
         if not self.config.proof_cmd:
             self.dry_run_notes.append("no --proof-cmd: nothing mechanical will check the deliverable.")
+        uses = [x for x, on in (("strategy", self.config.strategy == "auto"),
+                                ("allocation", self.config.allocation == "auto"),
+                                ("judge", self.config.judge == "decision")) if on]
+        if self.decider is not None:
+            ready = self.decider.ready()
+            if ready:
+                self.dry_run_notes.append("decisions: " + ", ".join(f"{s.id} ({s.model})" for s in ready)
+                                          + " ready; used for " + (", ".join(uses + ["finding triage"])))
+            else:
+                why = "; ".join(f"{s.id}: {w}" for s, w in self.decider.availability())
+                self.dry_run_notes.append(f"decisions: no decision model ready ({why or 'none declared'}); "
+                                          f"defaults apply and are logged" + (f" for {', '.join(uses)}" if uses else ""))
+        elif uses:
+            self.dry_run_notes.append(f"decisions are off but {', '.join(uses)} asked for one: defaults apply "
+                                      f"(hybrid, auto:smart, every red-team finding back to the planner)")
         return allocs
 
     def _dry_run_requests(self, judge: str) -> list[RoleRequest]:
-        reqs = role_requests_for(self.config.strategy, self.config.quorum, self.config.builder, judge)
+        # `auto` is decided at run time from the task; plan the fullest shape for the dry run
+        strategy = "hybrid" if self.config.strategy == "auto" else self.config.strategy
+        reqs = role_requests_for(strategy, self.config.quorum, self.config.builder, judge)
         if self.config.builder:
             others = tuple(a for a in self.catalog if a != self.config.builder)
             reqs = [RoleRequest("build", exclude=others, min_capability=0.0) if r.role == "build" else r
@@ -505,6 +607,10 @@ class Coordinator:
             raise ValueError(f"repo does not exist: {self.config.repo}")
         self._start_log()
         try:
+            if self.config.strategy == "auto":
+                self.config.strategy = self._choose_strategy()
+            if self.config.allocation == "auto":
+                self.config.allocation = self._choose_allocation()
             self._phase_plan()
             s = self.config.strategy
             if s == "collaborative":
