@@ -52,6 +52,5 @@ Body: see the Show HN text; add the live-run table from the README and the `asse
 ## Before posting
 
 - Check CI is green on the commit you link.
-- PyPI: the distribution is `agora-loop` (`agora` was taken; the import name and the `agora` command stay). `.github/workflows/publish.yml` publishes on every GitHub release through PyPI trusted publishing, so no token is stored. One-time setup on pypi.org, before the release: Your account > Publishing > add a pending publisher with owner `dgiunchi`, repository `agora`, workflow `publish.yml`, environment `pypi`. Creating the GitHub release then publishes; if the publisher was added later, run the workflow once by hand from the Actions tab.
-- After the package is on PyPI, flip the first Quick-start line in README.md to `pipx install agora-loop` and put the badge back under the others: `[![PyPI](https://img.shields.io/pypi/v/agora-loop.svg)](https://pypi.org/project/agora-loop/)`.
+- PyPI: done. v0.1.0 was published on 2026-10-30 from the GitHub release through trusted publishing (`.github/workflows/publish.yml`, environment `pypi`, no token stored); `pipx install agora-loop` is the install line in the README. Every later GitHub release publishes the same way: bump `version` in `pyproject.toml`, tag, publish the release.
 - GitHub social preview: Settings > General > Social preview, upload a 1280x640 PNG of `assets/hero.svg` (render it in any browser and screenshot; GitHub does not accept SVG there).

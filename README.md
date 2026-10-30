@@ -7,6 +7,7 @@
 N coding agents. One bounded loop. Zero API bills.
 
 [![CI](https://github.com/dgiunchi/agora/actions/workflows/ci.yml/badge.svg)](https://github.com/dgiunchi/agora/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/agora-loop.svg)](https://pypi.org/project/agora-loop/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](./pyproject.toml)
 [![Zero deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen.svg)](./pyproject.toml)
@@ -140,7 +141,7 @@ Adding an agent is one TOML table. See [`agents.example.toml`](agents.example.to
 ## Quick start
 
 ```bash
-pipx install git+https://github.com/dgiunchi/agora               # PyPI: `pipx install agora-loop` once v0.1.0 is published
+pipx install agora-loop                                          # or: pipx install git+https://github.com/dgiunchi/agora
 agora agents init                                                # writes agents.toml; keep the agents you actually have
 agora agents doctor                                              # on PATH? which version? what exactly would run?
 agora quota                                                      # what has each agent used, what is left
