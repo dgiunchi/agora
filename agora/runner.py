@@ -100,7 +100,7 @@ def npm_shim_target(shim: Path) -> list[str] | None:
     # The shim first probes for a bundled node.exe ("IF EXIST ...\node.exe"); the real
     # entry is the last quoted path that exists and is not that probe.
     for m in _SHIM_ENTRY.finditer(text):
-        entry = shim.parent / m.group(1)
+        entry = shim.parent / m.group(1).replace("\\", "/")   # a Windows path, resolved on any OS
         if entry.name.lower() == "node.exe" or not entry.exists():
             continue
         if entry.suffix.lower() == ".exe":

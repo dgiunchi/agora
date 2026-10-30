@@ -26,4 +26,4 @@ jobs:
           python -m pip install .
           agora --version
           agora agents list --catalog agents.example.toml
-          agora run "smoke" --catalog agents.example.toml --dry-run --seed 1 --ledger ci-ledger.sqlite
+          agora run "smoke" --catalog agents.example.toml --dry-run --seed 1 --ledger ci-ledger.sqlite --assume-installed

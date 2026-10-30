@@ -63,13 +63,22 @@ def current_commit(repo: str | Path) -> str | None:
 
 NOISE_DIRS = frozenset({"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox",
                         ".venv", "venv", "node_modules", ".git"})
+# State that an agent's own host writes into the working directory during a session
+# (settings, session files, plugin caches). Not the deliverable; a read-only turn that
+# only produced these has not changed the tree. Seen live: .claude-flow/mods/session.json.
+AGENT_STATE_DIRS = frozenset({".claude", ".claude-flow", ".codex", ".gemini", ".qwen", ".opencode",
+                              ".goose", ".crush", ".kilocode", ".cline", ".agora"})
+AGENT_STATE_PREFIXES = (".aider",)
 NOISE_SUFFIXES = (".pyc", ".pyo")
 
 
 def _is_noise(rel: str) -> bool:
-    """Caches that a read-only turn legitimately creates by running the proof command."""
+    """Caches and agent-host state that a read-only turn legitimately leaves behind."""
     parts = rel.replace("\\", "/").split("/")
-    return any(p in NOISE_DIRS for p in parts) or rel.endswith(NOISE_SUFFIXES)
+    if any(p in NOISE_DIRS for p in parts) or rel.endswith(NOISE_SUFFIXES):
+        return True
+    top = parts[0]
+    return top in AGENT_STATE_DIRS or top.startswith(AGENT_STATE_PREFIXES)
 
 
 def inspection_fingerprint(repo: str | Path) -> str:

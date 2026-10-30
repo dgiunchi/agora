@@ -80,6 +80,13 @@ class ReadOnlyEnforcementTests(unittest.TestCase):
         (repo / ".pytest_cache").mkdir()
         (repo / ".pytest_cache" / "v").write_text("1", encoding="utf-8")
         self.assertEqual(inspection_fingerprint(repo), before)
+        # host state written by the agent's own tooling during a session (seen live)
+        (repo / ".claude-flow" / "mods").mkdir(parents=True)
+        (repo / ".claude-flow" / "mods" / "session.json").write_text("{}", encoding="utf-8")
+        (repo / ".claude").mkdir()
+        (repo / ".claude" / "settings.local.json").write_text("{}", encoding="utf-8")
+        (repo / ".aider.chat.history.md").write_text("x", encoding="utf-8")
+        self.assertEqual(inspection_fingerprint(repo), before)
         (repo / "real.py").write_text("x = 1\n", encoding="utf-8")
         self.assertNotEqual(inspection_fingerprint(repo), before)
 
